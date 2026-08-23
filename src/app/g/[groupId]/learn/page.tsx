@@ -24,12 +24,9 @@ export default async function LearnPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-lg font-bold text-ink-900">LEARN</h1>
-        <p className="mt-1 text-sm text-ink-600">
-          対局中に分からなくなったら、いつでもここで確認できます。
-        </p>
-      </div>
+      <p className="text-sm text-ink-600">
+        対局中に分からなくなったら、いつでもここで確認できます。
+      </p>
 
       <div className="flex gap-1 rounded-full bg-ink-400/10 p-1 text-sm font-medium">
         <Link

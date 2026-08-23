@@ -40,19 +40,6 @@ export function ScoreRuleExplainer({ rule }: { rule: GroupRule }) {
       </div>
 
       <div className="border-t border-ink-400/10 pt-6">
-        <h2 className="text-base font-bold text-ink-900">半荘ポイントの計算方法</h2>
-        <p className="mt-1 text-sm text-ink-600">
-          対局が終わったら、最終持ち点から次の内訳を合計してその半荘のポイントが決まります。
-        </p>
-        <p className="mt-2 rounded-lg bg-washi-200 px-3 py-2.5 text-sm font-medium text-ink-900">
-          素点(持ち点差) + ウマ + オカ + チップ − ペナルティ = 半荘ポイント
-        </p>
-        <p className="mt-1 text-xs text-ink-400">
-          クォーター/年間ランキングでは、この半荘ポイントに対局数ボーナスを加えた合計で順位が決まります。
-        </p>
-      </div>
-
-      <div className="border-t border-ink-400/10 pt-6">
         <h3 className="mb-2 text-sm font-semibold text-ink-900">この麻雀部の設定</h3>
         <Card className="divide-y divide-ink-400/10">
           <Row label="持ち点" value={`${rule.startingPoints.toLocaleString()}点`} />
