@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getConfirmedGameResults } from "@/lib/mahjong/queries";
-import { calculateRanking } from "@/lib/mahjong/ranking";
+import { calculateRanking, toPlayCountBonusRule, type PlayCountBonusRule } from "@/lib/mahjong/ranking";
 import { computeTableStandings } from "@/lib/mahjong/tableStats";
 import {
   getSeasonYear,
@@ -28,7 +28,11 @@ export default async function RankingPage({
 }) {
   const { groupId } = await params;
   await requireMembership(groupId);
-  const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+  const group = await prisma.group.findUniqueOrThrow({
+    where: { id: groupId },
+    include: { rule: true },
+  });
+  const playCountBonusRule = group.rule ? toPlayCountBonusRule(group.rule) : undefined;
 
   const { view, period, quarter } = await searchParams;
   const now = new Date();
@@ -88,6 +92,7 @@ export default async function RankingPage({
           selectedQuarter={selectedQuarter}
           quarters={quarters}
           range={range}
+          playCountBonusRule={playCountBonusRule}
         />
       )}
     </div>
@@ -194,6 +199,7 @@ async function RankingView({
   selectedQuarter,
   quarters,
   range,
+  playCountBonusRule,
 }: {
   groupId: string;
   mode: "season" | "quarter";
@@ -202,9 +208,10 @@ async function RankingView({
   selectedQuarter: 1 | 2 | 3 | 4;
   quarters: ReturnType<typeof listQuarters>;
   range: { start: Date; end: Date };
+  playCountBonusRule?: PlayCountBonusRule;
 }) {
   const results = await getConfirmedGameResults(groupId);
-  const ranking = calculateRanking(results, range);
+  const ranking = calculateRanking(results, range, playCountBonusRule);
 
   return (
     <div className="space-y-4">
@@ -261,7 +268,21 @@ async function RankingView({
               <span className="w-8 text-center text-lg">
                 {MEDALS[entry.rank - 1] ?? entry.rank}
               </span>
-              <span className="text-sm font-medium text-ink-900">{entry.userName}</span>
+              <div>
+                <span className="block text-sm font-medium text-ink-900">{entry.userName}</span>
+                <span className="block text-xs text-ink-400">
+                  {entry.gamesPlayed}半荘
+                  {entry.playCountBonusPoint !== 0 && (
+                    <>
+                      {" "}
+                      ・対局数
+                      {entry.playCountBonusPoint > 0 ? "ボーナス" : "ペナルティ"}
+                      {entry.playCountBonusPoint > 0 ? "+" : ""}
+                      {entry.playCountBonusPoint}
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
             <span
               className={`text-sm font-semibold ${

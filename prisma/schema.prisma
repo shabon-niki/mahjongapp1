@@ -115,6 +115,17 @@ model GroupRule {
 
   yakitoriEnabled Boolean @default(false) @map("yakitori_enabled")
 
+  /// 期間内の対局数(半荘数)が多い/少ない人に加減点する「対局数ボーナス」の設定。
+  /// 対局数TOP3に上から順にplayCountBonusTop1〜3、WORST3に上から順に
+  /// playCountPenaltyWorst1〜3を加算する(通常はWorst側を負の値にする)。
+  playCountBonusEnabled  Boolean @default(false) @map("play_count_bonus_enabled")
+  playCountBonusTop1     Int     @default(3) @map("play_count_bonus_top1")
+  playCountBonusTop2     Int     @default(2) @map("play_count_bonus_top2")
+  playCountBonusTop3     Int     @default(1) @map("play_count_bonus_top3")
+  playCountPenaltyWorst1 Int     @default(-3) @map("play_count_penalty_worst1")
+  playCountPenaltyWorst2 Int     @default(-2) @map("play_count_penalty_worst2")
+  playCountPenaltyWorst3 Int     @default(-1) @map("play_count_penalty_worst3")
+
   /// "asis"(そのまま/小数点第一位) | "gosha_rokunyu"(五捨六入) 素点計算の端数処理
   roundingRule String @default("asis") @map("rounding_rule")
   /// "seat_order" | "shared_rank" (同点時の順位決定方式)

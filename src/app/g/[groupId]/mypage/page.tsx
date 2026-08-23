@@ -6,7 +6,7 @@ import {
   getConfirmedGameResults,
   getPersonalGameStats,
 } from "@/lib/mahjong/queries";
-import { calculateRanking } from "@/lib/mahjong/ranking";
+import { calculateRanking, toPlayCountBonusRule } from "@/lib/mahjong/ranking";
 import { getSeasonYear, getQuarterForDate, getSeasonRange, getQuarterRange } from "@/lib/mahjong/season";
 import { EXPERIENCE_LABELS } from "@/lib/mahjong/experience";
 import { formatDate } from "@/lib/format";
@@ -19,7 +19,11 @@ export default async function MyPage({
 }) {
   const { groupId } = await params;
   const { user, membership } = await requireMembership(groupId);
-  const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+  const group = await prisma.group.findUniqueOrThrow({
+    where: { id: groupId },
+    include: { rule: true },
+  });
+  const playCountBonusRule = group.rule ? toPlayCountBonusRule(group.rule) : undefined;
   const isOwner = membership.role === "owner";
   const myGroups = await listMyGroups(user.id);
   const hasMultipleGroups = myGroups.length > 1;
@@ -35,8 +39,8 @@ export default async function MyPage({
   const quarterRange = getQuarterRange(seasonYear, currentQuarter, group.seasonStartMonth);
 
   const results = await getConfirmedGameResults(groupId);
-  const seasonRanking = calculateRanking(results, seasonRange);
-  const quarterRanking = calculateRanking(results, quarterRange);
+  const seasonRanking = calculateRanking(results, seasonRange, playCountBonusRule);
+  const quarterRanking = calculateRanking(results, quarterRange, playCountBonusRule);
 
   const seasonEntry = seasonRanking.find((r) => r.userId === user.id);
   const quarterEntry = quarterRanking.find((r) => r.userId === user.id);

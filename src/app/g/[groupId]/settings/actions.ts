@@ -65,6 +65,13 @@ export async function updateGroupRule(groupId: string, formData: FormData) {
       resultEntryPermission: ["all_members", "owner_only"].includes(resultEntryPermission)
         ? resultEntryPermission
         : "all_members",
+      playCountBonusEnabled: formData.get("playCountBonusEnabled") === "on",
+      playCountBonusTop1: num(formData, "playCountBonusTop1", 3),
+      playCountBonusTop2: num(formData, "playCountBonusTop2", 2),
+      playCountBonusTop3: num(formData, "playCountBonusTop3", 1),
+      playCountPenaltyWorst1: num(formData, "playCountPenaltyWorst1", -3),
+      playCountPenaltyWorst2: num(formData, "playCountPenaltyWorst2", -2),
+      playCountPenaltyWorst3: num(formData, "playCountPenaltyWorst3", -1),
     },
   });
 

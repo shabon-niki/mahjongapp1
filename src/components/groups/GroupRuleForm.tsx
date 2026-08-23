@@ -37,7 +37,17 @@ type Rule = {
   roundingRule: string;
   tieRule: string;
   resultEntryPermission: string;
+  playCountBonusEnabled: boolean;
+  playCountBonusTop1: number;
+  playCountBonusTop2: number;
+  playCountBonusTop3: number;
+  playCountPenaltyWorst1: number;
+  playCountPenaltyWorst2: number;
+  playCountPenaltyWorst3: number;
 };
+
+const pointInputClass =
+  "w-full rounded-lg border border-ink-400/30 bg-washi-100 px-2 py-2 text-center text-sm outline-none focus:border-gold-500";
 
 const selectClass =
   "w-full rounded-lg border border-ink-400/30 bg-washi-100 px-3 py-2 text-sm outline-none focus:border-gold-500";
@@ -45,6 +55,7 @@ const selectClass =
 export function GroupRuleForm({ groupId, rule }: { groupId: string; rule: Rule }) {
   const [umaPreset, setUmaPreset] = useState(findUmaPresetKey(rule));
   const [penaltyPreset, setPenaltyPreset] = useState(rule.bustPenaltyEnabled ? "on" : "off");
+  const [playCountBonusEnabled, setPlayCountBonusEnabled] = useState(rule.playCountBonusEnabled);
 
   return (
     <form action={updateGroupRule.bind(null, groupId)} className="space-y-6">
@@ -188,6 +199,72 @@ export function GroupRuleForm({ groupId, rule }: { groupId: string; rule: Rule }
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="border-t border-ink-400/10 pt-4">
+        <Toggle
+          name="playCountBonusEnabled"
+          label="対局数ボーナス"
+          description="期間内の対局数(半荘数)TOP3に加点、WORST3に加点(通常は負の値)します"
+          defaultChecked={rule.playCountBonusEnabled}
+          onChange={setPlayCountBonusEnabled}
+        />
+        {playCountBonusEnabled && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <p className="mb-1 text-xs text-ink-400">対局数TOP3への加点</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { name: "playCountBonusTop1", label: "1位", value: rule.playCountBonusTop1 },
+                  { name: "playCountBonusTop2", label: "2位", value: rule.playCountBonusTop2 },
+                  { name: "playCountBonusTop3", label: "3位", value: rule.playCountBonusTop3 },
+                ].map((f) => (
+                  <div key={f.name}>
+                    <span className="mb-1 block text-center text-xs text-ink-400">{f.label}</span>
+                    <input
+                      type="number"
+                      name={f.name}
+                      defaultValue={f.value}
+                      className={pointInputClass}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-ink-400">対局数WORST3への加点(通常は負の値)</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  {
+                    name: "playCountPenaltyWorst1",
+                    label: "1位",
+                    value: rule.playCountPenaltyWorst1,
+                  },
+                  {
+                    name: "playCountPenaltyWorst2",
+                    label: "2位",
+                    value: rule.playCountPenaltyWorst2,
+                  },
+                  {
+                    name: "playCountPenaltyWorst3",
+                    label: "3位",
+                    value: rule.playCountPenaltyWorst3,
+                  },
+                ].map((f) => (
+                  <div key={f.name}>
+                    <span className="mb-1 block text-center text-xs text-ink-400">{f.label}</span>
+                    <input
+                      type="number"
+                      name={f.name}
+                      defaultValue={f.value}
+                      className={pointInputClass}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <details className="rounded-xl border border-ink-400/15 p-3">
