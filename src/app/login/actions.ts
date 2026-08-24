@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword, isValidEmail, isValidPassword } from "@/l
 
 const SESSION_COOKIE_OPTS = {
   httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   maxAge: 60 * 60 * 24 * 365,
   path: "/",
