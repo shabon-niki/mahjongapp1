@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { regenerateInviteToken } from "@/app/groups/actions";
 import { Card } from "@/components/ui/Card";
@@ -19,11 +19,28 @@ export function InviteLinkCard({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  // navigator.shareの有無はSSR時に判定できないため、クライアントでのみ読み取る
+  // (useSyncExternalStoreならハイドレーション不整合の警告を避けられる)
+  const canShare = useSyncExternalStore(
+    () => () => {},
+    () => typeof navigator !== "undefined" && "share" in navigator,
+    () => false
+  );
+
+  const inviteUrl = () => `${window.location.origin}/invite/${inviteToken}`;
+
   const handleCopy = async () => {
-    const url = `${window.location.origin}/invite/${inviteToken}`;
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(inviteUrl());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.share({ title: "聴牌", text: "麻雀部に招待されました", url: inviteUrl() });
+    } catch {
+      // ユーザーによる共有キャンセル等は無視する
+    }
   };
 
   return (
@@ -34,7 +51,12 @@ export function InviteLinkCard({
           リンクをコピーしてTeams等へ共有してください。リンクを開いた人はログイン後、参加確認画面が表示されます。
         </p>
       </div>
-      <Button variant="secondary" className="w-full" onClick={handleCopy}>
+      {canShare && (
+        <Button variant="secondary" className="w-full" onClick={handleShare}>
+          招待リンクを共有
+        </Button>
+      )}
+      <Button variant={canShare ? "ghost" : "secondary"} className="w-full" onClick={handleCopy}>
         {copied ? "コピーしました！" : "招待リンクをコピー"}
       </Button>
       {isOwner && (

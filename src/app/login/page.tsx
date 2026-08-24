@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { LoginForm } from "@/components/login/LoginForm";
 import { CreateAccountForm } from "@/components/login/CreateAccountForm";
@@ -37,6 +38,15 @@ export default async function LoginPage({
           <p className="mb-3 text-sm font-semibold text-ink-900">はじめての方はこちら</p>
           <CreateAccountForm />
         </Card>
+
+        <p className="text-center">
+          <Link
+            href="/privacy"
+            className="text-xs text-washi-200/60 underline underline-offset-2"
+          >
+            プライバシーポリシー・お問い合わせ
+          </Link>
+        </p>
       </div>
     </div>
   );
