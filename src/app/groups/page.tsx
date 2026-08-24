@@ -55,7 +55,7 @@ export default async function GroupsPage() {
           </Button>
         </Link>
 
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center gap-4">
           <form action={logout}>
             <button
               type="submit"
@@ -64,6 +64,12 @@ export default async function GroupsPage() {
               別のアカウントに切り替える
             </button>
           </form>
+          <Link
+            href="/account/delete"
+            className="text-xs text-washi-200/60 underline underline-offset-2"
+          >
+            アカウントを削除する
+          </Link>
         </div>
       </div>
     </div>

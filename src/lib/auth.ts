@@ -20,6 +20,7 @@ export async function getCurrentUser(): Promise<User | null> {
   if (!userId) return null;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.deletedAt) return null;
   return user;
 }
 

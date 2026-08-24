@@ -3,7 +3,13 @@ import { Card } from "@/components/ui/Card";
 import { LoginForm } from "@/components/login/LoginForm";
 import { CreateAccountForm } from "@/components/login/CreateAccountForm";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string }>;
+}) {
+  const { deleted } = await searchParams;
+
   return (
     <div className="min-h-dvh bg-board-900 flex flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
@@ -16,6 +22,12 @@ export default function LoginPage() {
             メールアドレスとパスワードでログインしてください
           </p>
         </div>
+
+        {deleted === "1" && (
+          <p className="rounded-lg bg-washi-100 px-3 py-2.5 text-center text-sm text-ink-900">
+            アカウントを削除しました。ご利用ありがとうございました。
+          </p>
+        )}
 
         <Card className="p-4">
           <LoginForm />

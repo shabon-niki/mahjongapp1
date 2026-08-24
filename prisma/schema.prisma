@@ -27,6 +27,9 @@ model User {
   experienceLevel ExperienceLevel @default(beginner) @map("experience_level")
   /// 対局記録にその場限りで追加されるゲスト参加者。ログイン不可・ランキング集計対象外。
   isGuest         Boolean         @default(false) @map("is_guest")
+  /// アカウント削除日時(nullなら有効)。過去の対局結果・ランキング履歴は他メンバーの
+  /// データと不可分のため削除せず、email/passwordHashをnull化してログイン不可にするのみ。
+  deletedAt       DateTime?       @map("deleted_at")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 

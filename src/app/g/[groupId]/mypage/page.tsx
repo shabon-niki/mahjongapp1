@@ -139,6 +139,19 @@ export default async function MyPage({
       </div>
 
       <div>
+        <h2 className="mb-2 text-sm font-semibold text-ink-900">アカウント</h2>
+        <Card className="divide-y divide-ink-400/10">
+          <Link
+            href="/account/delete"
+            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
+          >
+            <span className="text-red-600">アカウントを削除する</span>
+            <span className="text-ink-400">›</span>
+          </Link>
+        </Card>
+      </div>
+
+      <div>
         <h2 className="mb-2 text-sm font-semibold text-ink-900">今シーズンの成績</h2>
         <Card className="divide-y divide-ink-400/10">
           <Row label="対局数" value={`${seasonPersonal.gamesPlayed}回`} />
