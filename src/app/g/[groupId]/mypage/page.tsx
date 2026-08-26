@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireMembership, listMyGroups } from "@/lib/auth";
+import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   getParticipantStats,
@@ -25,8 +25,6 @@ export default async function MyPage({
   });
   const playCountBonusRule = group.rule ? toPlayCountBonusRule(group.rule) : undefined;
   const isOwner = membership.role === "owner";
-  const myGroups = await listMyGroups(user.id);
-  const hasMultipleGroups = myGroups.length > 1;
 
   const stats = await getParticipantStats(user.id, groupId);
   const participationRate =
@@ -85,15 +83,18 @@ export default async function MyPage({
               <span className="text-ink-400">›</span>
             </Link>
           )}
-          {hasMultipleGroups && (
-            <Link
-              href="/groups"
-              className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
-            >
-              <span className="text-ink-900">🔄 麻雀部を切り替える</span>
-              <span className="text-ink-400">›</span>
-            </Link>
-          )}
+          <Link
+            href="/groups"
+            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
+          >
+            <span>
+              <span className="block text-ink-900">🔄 麻雀部を切り替える・追加する</span>
+              <span className="mt-0.5 block text-xs text-ink-400">
+                所属している麻雀部の一覧、新しい麻雀部の作成はこちらから
+              </span>
+            </span>
+            <span className="text-ink-400">›</span>
+          </Link>
         </Card>
       </div>
 

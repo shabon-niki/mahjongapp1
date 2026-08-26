@@ -12,10 +12,6 @@ export default async function GroupsPage() {
 
   const memberships = await listMyGroups(user.id);
 
-  if (memberships.length === 1) {
-    redirect(`/g/${memberships[0].groupId}`);
-  }
-
   return (
     <div className="min-h-dvh bg-board-900 px-4 py-10">
       <div className="mx-auto w-full max-w-sm space-y-6">
