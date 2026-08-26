@@ -25,9 +25,18 @@ async function resolveDestination(): Promise<string> {
   return "/groups";
 }
 
-async function loginAs(userId: string) {
+async function setSessionCookie(userId: string) {
   const cookieStore = await cookies();
   cookieStore.set(CURRENT_USER_COOKIE, userId, SESSION_COOKIE_OPTS);
+}
+
+async function loginAs(userId: string) {
+  await setSessionCookie(userId);
+  redirect(await resolveDestination());
+}
+
+/** 未経験/初心者向けチュートリアル(/onboarding)を終えた後の遷移先へ進む */
+export async function finishOnboarding() {
   redirect(await resolveDestination());
 }
 
@@ -91,8 +100,12 @@ export async function register(
     },
   });
 
-  await loginAs(user.id);
-  return {};
+  await setSessionCookie(user.id);
+  // 未経験/初心者は先に麻雀の基本を説明するチュートリアルを挟む
+  if (experienceLevel === "inexperienced" || experienceLevel === "beginner") {
+    redirect("/onboarding");
+  }
+  redirect(await resolveDestination());
 }
 
 export async function logout() {
