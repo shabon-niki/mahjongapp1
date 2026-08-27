@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { finishOnboarding } from "@/app/login/actions";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { MahjongTileExample } from "@/components/ui/MahjongTile";
+import { MahjongTile, MahjongTileExample } from "@/components/ui/MahjongTile";
+import type { TileCode } from "@/lib/mahjong/tiles";
 
 export default async function OnboardingPage() {
   const user = await getCurrentUser();
@@ -18,6 +19,28 @@ export default async function OnboardingPage() {
             対局に参加する前に、麻雀の基本だけさらっと確認しておきましょう。
           </p>
         </div>
+
+        <Card className="p-4 space-y-3">
+          <h2 className="text-base font-bold text-ink-900">🎴 麻雀牌の種類</h2>
+          <p className="text-sm text-ink-600">
+            麻雀牌は大きく2種類。数字のある「数牌」が3種類、数字のない「字牌」が2種類です。
+          </p>
+          <div className="space-y-2.5">
+            <TileRowExample label="萬子(まんず)" tiles={["1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m"]} />
+            <TileRowExample label="筒子(ぴんず)" tiles={["1p", "2p", "3p", "4p", "5p", "6p", "7p", "8p", "9p"]} />
+            <TileRowExample label="索子(そうず)" tiles={["1s", "2s", "3s", "4s", "5s", "6s", "7s", "8s", "9s"]} />
+            <TileRowExample
+              label="風牌(東南西北)"
+              tiles={["東", "南", "西", "北"]}
+              note="自分や場の方位を表す字牌"
+            />
+            <TileRowExample
+              label="三元牌(白發中)"
+              tiles={["白", "發", "中"]}
+              note="方位とは関係のない字牌"
+            />
+          </div>
+        </Card>
 
         <Card className="p-4 space-y-2">
           <h2 className="text-base font-bold text-ink-900">🀄 麻雀ってどんなゲーム？</h2>
@@ -78,6 +101,28 @@ export default async function OnboardingPage() {
           </Button>
         </form>
       </div>
+    </div>
+  );
+}
+
+function TileRowExample({
+  label,
+  tiles,
+  note,
+}: {
+  label: string;
+  tiles: TileCode[];
+  note?: string;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium text-ink-900">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {tiles.map((code, i) => (
+          <MahjongTile key={i} code={code} />
+        ))}
+      </div>
+      {note && <p className="mt-1 text-xs text-ink-400">{note}</p>}
     </div>
   );
 }

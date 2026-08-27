@@ -21,7 +21,7 @@ export function MahjongTileExample({ groups }: { groups: TileGroup[] }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {groups.map((group, gi) => (
-        <div key={gi} className="flex gap-1">
+        <div key={gi} className="flex max-w-full flex-wrap gap-1">
           {group.map((code, ti) => (
             <MahjongTile key={ti} code={code} />
           ))}
