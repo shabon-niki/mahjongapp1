@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSeasonYear, getQuarterForDate, getQuarterRange } from "../season";
+import { getSeasonYear, getSeasonRange, getQuarterForDate, getQuarterRange } from "../season";
 
 describe("getSeasonYear(seasonStartMonth=9)", () => {
   it("8/31は前年度シーズンに属する", () => {
@@ -71,5 +71,24 @@ describe("getQuarterRange(seasonStartMonth=1: 1月始まり)", () => {
     const q4 = getQuarterRange(2026, 4, 1);
     expect(q4.start).toEqual(new Date(2026, 9, 1, 0, 0, 0, 0));
     expect(q4.end).toEqual(new Date(2026, 11, 31, 23, 59, 59, 999));
+  });
+});
+
+describe("実行環境のタイムゾーンに依存しないこと(本番はUTC、ユーザーはJST前提)", () => {
+  it("シーズン開始の境界は常に日本時間の0時(=UTC前日15時)を指す", () => {
+    // ローカルDate構築(new Date(y,m,d,...))を使わず、TZに依存しないUTC ISO文字列で検証する。
+    // 「2025/09/01 00:00 JST」は「2025/08/31 15:00 UTC」と一致するはず。
+    const range = getSeasonRange(2025, 9);
+    expect(range.start.toISOString()).toBe("2025-08-31T15:00:00.000Z");
+  });
+
+  it("UTC上ではまだ8/31 深夜でも、日本時間ではすでに9/1なら新シーズンと判定する", () => {
+    // 2025-09-01T00:00:00+09:00 と同じ瞬間 = 2025-08-31T15:00:00.000Z
+    const jstMidnightSep1 = new Date("2025-08-31T15:00:00.000Z");
+    expect(getSeasonYear(jstMidnightSep1, 9)).toBe(2025);
+
+    // その1ミリ秒前(まだJSTで8/31)は前シーズンのまま
+    const oneMsBefore = new Date("2025-08-31T14:59:59.999Z");
+    expect(getSeasonYear(oneMsBefore, 9)).toBe(2024);
   });
 });
