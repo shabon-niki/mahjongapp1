@@ -25,9 +25,19 @@ export function FinalizeForm({
     new Set(recommended.map((r) => r.userId))
   );
   const [isPending, startTransition] = useTransition();
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
 
   const all = [...recommended, ...others];
+
+  const handleCopyMentions = async () => {
+    const names = all.filter((r) => selected.has(r.userId)).map((r) => `@${r.userName}`);
+    const eventUrl = `${window.location.origin}/g/${groupId}/events/${eventId}`;
+    const text = `${names.join(" ")}\n今回の卓に選ばれました！よろしくお願いします 🀄\n${eventUrl}`;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const toggle = (userId: string) => {
     setSelected((prev) => {
@@ -76,6 +86,16 @@ export function FinalizeForm({
       </Card>
 
       <p className="text-xs text-ink-400">選択中: {selected.size}人</p>
+
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full"
+        disabled={selected.size === 0}
+        onClick={handleCopyMentions}
+      >
+        {copied ? "コピーしました！" : "選んだ人へのメンションをコピー(Teams貼り付け用)"}
+      </Button>
 
       <Button
         variant="secondary"

@@ -41,6 +41,7 @@ model User {
   gameResults      GameResult[]
   createdTables    Table[]           @relation("CreatedTables")
   tableMemberships TableMember[]     @relation("TableMemberships")
+  pushTokens       PushToken[]
 
   @@map("users")
 }
@@ -302,4 +303,27 @@ model GameResult {
 
   @@unique([gameId, userId])
   @@map("game_results")
+}
+
+enum PushPlatform {
+  ios
+  android
+}
+
+/**
+ * スマホアプリ(Capacitor)からのプッシュ通知トークン。
+ * 1ユーザーが複数端末を持つ場合があるため1:Nで保持する。
+ * 送信ロジックはsrc/lib/push.tsを参照。
+ */
+model PushToken {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  token     String       @unique
+  platform  PushPlatform
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("push_tokens")
 }
