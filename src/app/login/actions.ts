@@ -87,18 +87,30 @@ export async function register(
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  if (existing && existing.passwordHash) {
     return { error: "このメールアドレスは既に登録されています" };
   }
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      experienceLevel: experienceLevel as "inexperienced" | "beginner" | "experienced",
-      passwordHash: hashPassword(password),
-    },
-  });
+  // 対局記録の事前インポート等で作られた「未登録(パスワード未設定)」の
+  // アカウントがある場合は、新規作成せずそのレコードを本登録として引き継ぐ
+  // (過去の対局記録がそのまま本人の成績として反映される)。
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          experienceLevel: experienceLevel as "inexperienced" | "beginner" | "experienced",
+          passwordHash: hashPassword(password),
+        },
+      })
+    : await prisma.user.create({
+        data: {
+          name,
+          email,
+          experienceLevel: experienceLevel as "inexperienced" | "beginner" | "experienced",
+          passwordHash: hashPassword(password),
+        },
+      });
 
   await setSessionCookie(user.id);
   // 未経験/初心者は先に麻雀の基本を説明するチュートリアルを挟む
