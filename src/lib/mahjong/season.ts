@@ -80,7 +80,18 @@ export function listQuarters(seasonYear: number, seasonStartMonth: number): Quar
   return [1, 2, 3, 4].map((q) => getQuarterRange(seasonYear, q as Quarter, seasonStartMonth));
 }
 
-export function seasonLabel(seasonYear: number, seasonStartMonth: number): string {
+export function seasonLabel(
+  seasonYear: number,
+  seasonStartMonth: number,
+  seasonNumberOffset?: number | null
+): string {
   const endMonth = ((seasonStartMonth + 10) % 12) + 1; // 開始月の11ヶ月後(=season末月)
-  return `${seasonYear}年度シーズン (${seasonYear}/${String(seasonStartMonth).padStart(2, "0")}〜${seasonYear + (seasonStartMonth === 1 ? 0 : 1)}/${String(endMonth).padStart(2, "0")})`;
+  const name =
+    seasonNumberOffset != null ? `第${seasonYear + seasonNumberOffset}期` : `${seasonYear}年度シーズン`;
+  return `${name} (${seasonYear}/${String(seasonStartMonth).padStart(2, "0")}〜${seasonYear + (seasonStartMonth === 1 ? 0 : 1)}/${String(endMonth).padStart(2, "0")})`;
+}
+
+/** ランキング画面のシーズン切り替えタブ等に使う短いラベル(例: 「第6期」「2025年度」) */
+export function seasonShortLabel(seasonYear: number, seasonNumberOffset?: number | null): string {
+  return seasonNumberOffset != null ? `第${seasonYear + seasonNumberOffset}期` : `${seasonYear}年度`;
 }

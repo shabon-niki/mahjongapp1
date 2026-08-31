@@ -58,6 +58,9 @@ model Group {
   ownerUserId      String   @map("owner_user_id")
   /// シーズン開始月(1-12)。9月開始をアプリ全体にハードコードしないための設定値。
   seasonStartMonth Int      @default(9) @map("season_start_month")
+  /// 「第◯期」のように独自の期番号で表示したい場合のオフセット値。
+  /// 表示する期番号 = シーズン年度 + このオフセット。nullなら「◯◯年度」表記のまま。
+  seasonNumberOffset Int?   @map("season_number_offset")
   rankingEnabled   Boolean  @default(true) @map("ranking_enabled")
   /// 招待リンク用トークン。Ownerが再発行(ローテーション)可能。
   inviteToken      String   @unique @default(cuid())
