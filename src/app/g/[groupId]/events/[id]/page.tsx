@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { TableFormationDisplay } from "@/components/events/TableFormationDisplay";
 import { CopyRecruitmentButton } from "@/components/events/CopyRecruitmentButton";
 import { EntryActionButton } from "@/components/events/EntryActionButton";
+import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 
 export default async function EventDetailPage({
   params,
@@ -156,6 +157,11 @@ export default async function EventDetailPage({
             募集者向け操作
           </p>
           <CopyRecruitmentButton event={event} />
+          <Link href={`/g/${groupId}/events/${event.id}/edit`} className="block">
+            <Button variant="secondary" className="w-full">
+              募集内容を編集する
+            </Button>
+          </Link>
           {(formation.isOverCapacity || deadlinePassed || event.status !== "open") &&
             requiresAdjustment && (
             <Link href={`/g/${groupId}/events/${event.id}/adjust`} className="block">
@@ -164,6 +170,7 @@ export default async function EventDetailPage({
               </Button>
             </Link>
           )}
+          <DeleteEventButton groupId={groupId} eventId={event.id} />
         </div>
       )}
     </div>
