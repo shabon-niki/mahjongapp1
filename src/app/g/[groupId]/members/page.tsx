@@ -36,7 +36,12 @@ export default async function MembersPage({
         {memberships.map((m) => (
           <div key={m.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
             <div>
-              <span className="text-ink-900">{m.user.name}</span>
+              <Link
+                href={`/g/${groupId}/members/${m.userId}`}
+                className="text-ink-900 underline decoration-ink-400/30 underline-offset-2"
+              >
+                {m.user.name}
+              </Link>
               <span className="ml-2 text-xs text-ink-400">
                 {EXPERIENCE_LABELS[m.user.experienceLevel]}
               </span>

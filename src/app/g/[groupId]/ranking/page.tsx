@@ -348,7 +348,12 @@ async function RankingView({
                 {MEDALS[entry.rank - 1] ?? entry.rank}
               </span>
               <div>
-                <span className="block text-sm font-medium text-ink-900">{entry.userName}</span>
+                <Link
+                  href={`/g/${groupId}/members/${entry.userId}`}
+                  className="block text-sm font-medium text-ink-900 underline decoration-ink-400/30 underline-offset-2"
+                >
+                  {entry.userName}
+                </Link>
                 <span className="block text-xs text-ink-400">
                   {entry.gamesPlayed}半荘
                   {entry.playCountBonusPoint !== 0 && (

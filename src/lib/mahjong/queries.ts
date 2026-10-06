@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computeTableFormation } from "@/lib/mahjong/tableFormation";
+import { computePlayerStats } from "@/lib/mahjong/playerStats";
 import type { EntryStatus } from "@/generated/prisma/client";
 
 /** 有効エントリー(参加希望として数える)状態。本人キャンセル/非選定は除外する */
@@ -31,7 +32,17 @@ export function summarizeEntries<T extends { status: EntryStatus }>(entries: T[]
   };
 }
 
-export async function listOpenEvents(groupId: string) {
+function withMyEntryStatus<T extends { entries: { userId: string; status: EntryStatus }[] }>(
+  event: T,
+  userId?: string
+) {
+  if (!userId) return null;
+  const myEntry = event.entries.find((e) => e.userId === userId && isValidEntry(e.status));
+  return myEntry?.status ?? null;
+}
+
+/** Group単位で現在募集中(status: open)の卓を取得する。userIdを渡すと本人の応募状況も付与する。 */
+export async function listOpenEvents(groupId: string, userId?: string) {
   const events = await prisma.event.findMany({
     where: { groupId, status: "open" },
     include: { organizer: true, entries: true },
@@ -44,30 +55,26 @@ export async function listOpenEvents(groupId: string) {
       event,
       entryCount,
       formation: computeTableFormation(entryCount, event.maxTables),
+      myEntryStatus: withMyEntryStatus(event, userId),
     };
   });
 }
 
-export async function listMyEvents(userId: string, groupId: string) {
-  const entries = await prisma.entry.findMany({
-    where: {
-      userId,
-      status: { in: VALID_ENTRY_STATUSES },
-      event: { groupId },
-    },
-    include: {
-      event: { include: { organizer: true, entries: true } },
-    },
-    orderBy: { event: { eventDatetime: "desc" } },
+/** Group単位で募集が終了した(status: open以外)過去の卓を取得する。誰が参加したかに関わらずGroup全体を返す。 */
+export async function listPastEvents(groupId: string, userId?: string) {
+  const events = await prisma.event.findMany({
+    where: { groupId, status: { not: "open" } },
+    include: { organizer: true, entries: true },
+    orderBy: { eventDatetime: "desc" },
   });
 
-  return entries.map(({ event, status }) => {
+  return events.map((event) => {
     const { entryCount } = summarizeEntries(event.entries);
     return {
       event,
-      myStatus: status,
       entryCount,
       formation: computeTableFormation(entryCount, event.maxTables),
+      myEntryStatus: withMyEntryStatus(event, userId),
     };
   });
 }
@@ -86,26 +93,25 @@ export async function getConfirmedGameResults(groupId: string) {
   }));
 }
 
-/** マイページ向け個人戦績(仕様33章)。confirmedのGameのみを対象に期間集計する。 */
+/** 個人戦績(仕様33章)。confirmedのGameのみを対象に集計する。rangeを省略すると全期間。 */
 export async function getPersonalGameStats(
   groupId: string,
   userId: string,
-  range: { start: Date; end: Date }
+  range?: { start: Date; end: Date }
 ) {
   const results = await prisma.gameResult.findMany({
     where: {
       userId,
-      game: { groupId, status: "confirmed", playedAt: { gte: range.start, lte: range.end } },
+      game: {
+        groupId,
+        status: "confirmed",
+        ...(range ? { playedAt: { gte: range.start, lte: range.end } } : {}),
+      },
     },
+    select: { rank: true, totalRankingPoint: true },
   });
 
-  const gamesPlayed = results.length;
-  const totalPoint = results.reduce((sum, r) => sum + r.totalRankingPoint, 0);
-  const firstPlaceCount = results.filter((r) => r.rank === 1).length;
-  const averageRank =
-    gamesPlayed > 0 ? results.reduce((sum, r) => sum + r.rank, 0) / gamesPlayed : null;
-
-  return { gamesPlayed, totalPoint, firstPlaceCount, averageRank };
+  return computePlayerStats(results);
 }
 
 /**

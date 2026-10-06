@@ -11,6 +11,7 @@ import { getSeasonYear, getQuarterForDate, getSeasonRange, getQuarterRange } fro
 import { EXPERIENCE_LABELS } from "@/lib/mahjong/experience";
 import { formatDate } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
+import { PlayerStatsCard } from "@/components/ui/PlayerStatsCard";
 
 export default async function MyPage({
   params,
@@ -44,6 +45,7 @@ export default async function MyPage({
   const quarterEntry = quarterRanking.find((r) => r.userId === user.id);
 
   const seasonPersonal = await getPersonalGameStats(groupId, user.id, seasonRange);
+  const allTimePersonal = await getPersonalGameStats(groupId, user.id);
 
   return (
     <div className="space-y-5">
@@ -154,18 +156,12 @@ export default async function MyPage({
 
       <div>
         <h2 className="mb-2 text-sm font-semibold text-ink-900">今シーズンの成績</h2>
-        <Card className="divide-y divide-ink-400/10">
-          <Row label="対局数" value={`${seasonPersonal.gamesPlayed}回`} />
-          <Row label="1位回数" value={`${seasonPersonal.firstPlaceCount}回`} />
-          <Row
-            label="平均順位"
-            value={
-              seasonPersonal.averageRank === null
-                ? "-"
-                : `${seasonPersonal.averageRank.toFixed(2)}位`
-            }
-          />
-        </Card>
+        <PlayerStatsCard stats={seasonPersonal} />
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-ink-900">通算の成績</h2>
+        <PlayerStatsCard stats={allTimePersonal} />
       </div>
     </div>
   );

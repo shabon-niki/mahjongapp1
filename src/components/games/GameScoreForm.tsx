@@ -5,6 +5,7 @@ import { createGame, updateGame } from "@/app/g/[groupId]/games/actions";
 import { validatePlayerInputs, type RuleSnapshot } from "@/lib/mahjong/scoreEngine";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { SignedNumberInput } from "@/components/ui/SignedNumberInput";
 
 export type Candidate = { userId: string; userName: string };
 
@@ -118,25 +119,20 @@ export function GameScoreForm({
             <p className="text-sm font-semibold text-ink-900">{p.userName}</p>
             <div className="flex items-center gap-2">
               <label className="w-16 shrink-0 text-xs text-ink-400">最終持ち点</label>
-              <input
-                type="number"
-                step={100}
-                inputMode="numeric"
+              <SignedNumberInput
+                ariaLabel={`${p.userName}の最終持ち点`}
                 value={scores[p.userId] ?? ""}
-                onChange={(e) => setScores((s) => ({ ...s, [p.userId]: e.target.value }))}
-                className="w-full rounded-lg border border-ink-400/30 bg-washi-100 px-3 py-2 text-right text-sm outline-none focus:border-gold-500"
+                onChange={(v) => setScores((s) => ({ ...s, [p.userId]: v }))}
               />
               <span className="text-xs text-ink-400">点</span>
             </div>
             {rule.chipEnabled && (
               <div className="flex items-center gap-2">
                 <label className="w-16 shrink-0 text-xs text-ink-400">チップ</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
+                <SignedNumberInput
+                  ariaLabel={`${p.userName}のチップ`}
                   value={chips[p.userId] ?? "0"}
-                  onChange={(e) => setChips((s) => ({ ...s, [p.userId]: e.target.value }))}
-                  className="w-full rounded-lg border border-ink-400/30 bg-washi-100 px-3 py-2 text-right text-sm outline-none focus:border-gold-500"
+                  onChange={(v) => setChips((s) => ({ ...s, [p.userId]: v }))}
                 />
                 <span className="text-xs text-ink-400">枚</span>
               </div>

@@ -9,6 +9,7 @@ export function BottomNav({ groupId }: { groupId: string }) {
   const items = [
     { href: `/g/${groupId}`, label: "ホーム", icon: "🏠" },
     { href: `/g/${groupId}/learn`, label: "役一覧", icon: "📖" },
+    { href: `/g/${groupId}/calc`, label: "点数計算", icon: "🧮" },
     { href: `/g/${groupId}/ranking`, label: "ランキング", icon: "🏆" },
     { href: `/g/${groupId}/mypage`, label: "マイページ", icon: "👤" },
   ] as const;
