@@ -13,6 +13,51 @@ import {
 
 type PlayerFormInput = { userId: string; finalScore: number; chipCount: number };
 
+/**
+ * 募集(Event)経由の対局が「対局記録」一覧(Table単位)にも表示されるよう、
+ * そのEventに紐づくTableを取得(なければ作成)する。1つのEventの対局は
+ * 同じ「集まり」とみなし、複数回記録しても同じTableに半荘として積み上げる。
+ */
+async function findOrCreateEventTable(
+  groupId: string,
+  eventId: string,
+  createdByUserId: string,
+  playerUserIds: string[]
+) {
+  const existing = await prisma.game.findFirst({
+    where: { eventId, tableId: { not: null } },
+    select: { tableId: true },
+  });
+
+  if (existing?.tableId) {
+    const tableId = existing.tableId;
+    const existingMembers = await prisma.tableMember.findMany({
+      where: { tableId },
+      select: { userId: true },
+    });
+    const existingIds = new Set(existingMembers.map((m) => m.userId));
+    const newIds = playerUserIds.filter((id) => !existingIds.has(id));
+    if (newIds.length > 0) {
+      let seatOrder = existingMembers.length;
+      await prisma.tableMember.createMany({
+        data: newIds.map((userId) => ({ tableId, userId, seatOrder: seatOrder++ })),
+      });
+    }
+    return tableId;
+  }
+
+  const event = await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
+  const table = await prisma.table.create({
+    data: {
+      groupId,
+      playedDate: event.eventDatetime,
+      createdByUserId,
+      members: { create: playerUserIds.map((userId, i) => ({ userId, seatOrder: i })) },
+    },
+  });
+  return table.id;
+}
+
 function toGameResultRows(results: ReturnType<typeof calculateGameResults>) {
   return results.map((r) => ({
     userId: r.userId,
@@ -52,10 +97,25 @@ export async function createGame(
   }));
   const results = calculateGameResults(inputs, ruleSnapshot);
 
+  const tableId = eventId
+    ? await findOrCreateEventTable(
+        groupId,
+        eventId,
+        user.id,
+        players.map((p) => p.userId)
+      )
+    : null;
+  const lastHanchan = tableId
+    ? await prisma.game.findFirst({ where: { tableId }, orderBy: { hanchanNumber: "desc" } })
+    : null;
+  const hanchanNumber = tableId ? (lastHanchan?.hanchanNumber ?? 0) + 1 : undefined;
+
   const game = await prisma.game.create({
     data: {
       groupId,
       eventId: eventId ?? undefined,
+      tableId: tableId ?? undefined,
+      hanchanNumber,
       ruleSnapshot: JSON.stringify(ruleSnapshot),
       status: "draft",
       createdByUserId: user.id,
@@ -64,6 +124,7 @@ export async function createGame(
   });
 
   revalidatePath(`/g/${groupId}`);
+  revalidatePath(`/g/${groupId}/ranking`);
   redirect(`/g/${groupId}/games/${game.id}`);
 }
 
@@ -156,5 +217,14 @@ export async function discardDraftGame(groupId: string, gameId: string) {
   await prisma.gameResult.deleteMany({ where: { gameId } });
   await prisma.game.delete({ where: { id: gameId } });
 
+  if (game.tableId) {
+    const remaining = await prisma.game.count({ where: { tableId: game.tableId } });
+    if (remaining === 0) {
+      await prisma.tableMember.deleteMany({ where: { tableId: game.tableId } });
+      await prisma.table.delete({ where: { id: game.tableId } });
+    }
+  }
+
+  revalidatePath(`/g/${groupId}/ranking`);
   redirect(game.eventId ? `/g/${groupId}/events/${game.eventId}` : `/g/${groupId}`);
 }

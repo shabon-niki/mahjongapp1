@@ -5,28 +5,40 @@ import { TableFormationDisplay } from "@/components/events/TableFormationDisplay
 import { formatDateTimeWithWeekday } from "@/lib/format";
 import { getEntryPhase, ENTRY_PHASE_LABELS } from "@/lib/mahjong/eventStatus";
 import type { TableFormationResult } from "@/lib/mahjong/tableFormation";
-import type { Event, User } from "@/generated/prisma/client";
+import type { Event, User, EntryStatus } from "@/generated/prisma/client";
+
+const MY_ENTRY_STATUS_LABELS: Partial<Record<EntryStatus, string>> = {
+  entered: "応募中",
+  selected: "参加予定",
+  played: "対局済み",
+};
 
 export function EventCard({
   event,
   organizer,
   entryCount,
   formation,
+  myEntryStatus,
 }: {
   event: Event;
   organizer: User;
   entryCount: number;
   formation: TableFormationResult;
+  myEntryStatus?: EntryStatus | null;
 }) {
   const phase = getEntryPhase(event.entryDeadline);
+  const myStatusLabel = myEntryStatus ? MY_ENTRY_STATUS_LABELS[myEntryStatus] : undefined;
 
   return (
     <Link href={`/g/${event.groupId}/events/${event.id}`} className="block">
       <Card className="p-4 hover:border-gold-500/60 transition-colors">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone={phase === "closing_soon" ? "red" : phase === "closed" ? "neutral" : "green"}>
-            {ENTRY_PHASE_LABELS[phase]}
-          </Badge>
+          {event.status === "open" && (
+            <Badge tone={phase === "closing_soon" ? "red" : phase === "closed" ? "neutral" : "green"}>
+              {ENTRY_PHASE_LABELS[phase]}
+            </Badge>
+          )}
+          {myStatusLabel && <Badge tone="gold">{myStatusLabel}</Badge>}
           {event.beginnerFriendly && <Badge tone="gold">初心者歓迎</Badge>}
         </div>
 
