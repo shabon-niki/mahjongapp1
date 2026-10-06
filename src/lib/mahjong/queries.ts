@@ -108,7 +108,7 @@ export async function getPersonalGameStats(
         ...(range ? { playedAt: { gte: range.start, lte: range.end } } : {}),
       },
     },
-    select: { rank: true, totalRankingPoint: true },
+    select: { rank: true, totalRankingPoint: true, finalScore: true },
   });
 
   return computePlayerStats(results);

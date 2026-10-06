@@ -11,8 +11,8 @@ export function PlayerStatsCard({ stats }: { stats: PlayerStats }) {
     ["順位分布", `${stats.rankCounts.join(" - ")}`],
     ["平均順位", stats.averageRank === null ? "-" : `${stats.averageRank.toFixed(2)}位`],
     [
-      "平均点数",
-      stats.averagePoint === null ? "-" : signed(Math.round(stats.averagePoint * 10) / 10),
+      "平均点数(持ち点)",
+      stats.averageScore === null ? "-" : `${Math.round(stats.averageScore).toLocaleString()}点`,
     ],
     ["通算点数", signed(Math.round(stats.totalPoint * 10) / 10)],
     ["トップ率", pct(stats.topRate)],

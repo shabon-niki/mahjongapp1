@@ -1,8 +1,8 @@
 /**
- * 手牌(門前・副露なし)から役・符・点数を求める点数計算エンジン。
- * 13枚の手牌 + 和了牌1枚を受け取り、考えられる面子分解と待ちの取り方をすべて試して
- * 最も高い点数になる解釈を採用する(標準的な日本麻雀のルール)。
- * 対応外: 副露(チー・ポン・カン)、ダブルリーチ・海底・嶺上などの状況役。
+ * 手牌(副露あり/なし)から役・符・点数を求める点数計算エンジン。
+ * 手牌 + 和了牌1枚と副露(チー・ポン・カン)を受け取り、考えられる面子分解と待ちの取り方を
+ * すべて試して最も高い点数になる解釈を採用する(標準的な日本麻雀のルール)。
+ * 状況役: ダブルリーチ・一発・嶺上開花・槍槓・海底/河底・天和/地和に対応。
  */
 
 import type { TileCode } from "./tiles";
@@ -10,9 +10,22 @@ import type { TileCode } from "./tiles";
 export type Wind = "east" | "south" | "west" | "north";
 export type WinType = "tsumo" | "ron";
 
+/** 副露。chiはtileに順子の一番小さい牌を指定する(例: 345mのチーは"3m") */
+export type DeclaredMeld = { kind: "chi" | "pon" | "minkan" | "ankan"; tile: TileCode };
+
 export type HandInput = {
-  /** 手牌13枚(和了牌は含めない) */
+  /** 手牌(和了牌は含めない)。副露1組につき3枚減る(副露なしなら13枚) */
   hand: TileCode[];
+  melds?: DeclaredMeld[];
+  doubleRiichi?: boolean;
+  /** 嶺上開花(ツモ・カンあり) */
+  rinshan?: boolean;
+  /** 槍槓(ロン) */
+  chankan?: boolean;
+  /** 海底摸月(ツモ)/河底撈魚(ロン) */
+  lastTile?: boolean;
+  /** 配牌での和了(親=天和・子=地和。ツモ・副露なし) */
+  heavenEarth?: boolean;
   agari: TileCode | null;
   winType: WinType;
   riichi: boolean;
@@ -215,28 +228,74 @@ function finalize(
   };
 }
 
+type FullMeld = { kind: "seq" | "tri"; start: number; open: boolean; kan: boolean };
+
+function declaredToFull(m: DeclaredMeld): FullMeld {
+  return {
+    kind: m.kind === "chi" ? "seq" : "tri",
+    start: codeToIndex(m.tile),
+    open: m.kind !== "ankan",
+    kan: m.kind === "minkan" || m.kind === "ankan",
+  };
+}
+
+export function declaredTiles(m: DeclaredMeld): number[] {
+  const i = codeToIndex(m.tile);
+  if (m.kind === "chi") return [i, i + 1, i + 2];
+  return m.kind === "pon" ? [i, i, i] : [i, i, i, i];
+}
+
+/** 手牌の形に依存しない状況役(リーチ・ツモ・嶺上・槍槓・海底・天和/地和) */
+function situationalYaku(input: HandInput, closed: boolean): YakuItem[] {
+  const out: YakuItem[] = [];
+  const riichi = input.riichi || input.doubleRiichi;
+  if (input.heavenEarth) out.push({ name: input.isDealer ? "天和" : "地和", han: 13, yakuman: true });
+  if (riichi && closed) {
+    out.push(input.doubleRiichi ? { name: "ダブルリーチ", han: 2 } : { name: "リーチ", han: 1 });
+    if (input.ippatsu) out.push({ name: "一発", han: 1 });
+  }
+  if (input.rinshan) out.push({ name: "嶺上開花", han: 1 });
+  if (input.chankan) out.push({ name: "槍槓", han: 1 });
+  if (input.lastTile) {
+    out.push(input.winType === "tsumo" ? { name: "海底摸月", han: 1 } : { name: "河底撈魚", han: 1 });
+  }
+  if (input.winType === "tsumo" && closed) out.push({ name: "門前清自摸和", han: 1 });
+  return out;
+}
+
 function evaluateStandard(
   d: Decomp,
   interp: Interp,
-  counts: number[],
-  input: HandInput
+  allCounts: number[],
+  input: HandInput,
+  declared: FullMeld[]
 ): Candidate | null {
   const ron = input.winType === "ron";
   const roundIdx = WIND_INDEX[input.roundWind];
   const seatIdx = WIND_INDEX[input.seatWind];
+  const closed = declared.every((m) => !m.open);
+  /** 門前なら closedHan、鳴いていれば openHan(0なら成立しない) */
+  const han = (closedHan: number, openHan: number) => (closed ? closedHan : openHan);
 
-  const melds = d.melds.map((m, i) => ({
-    ...m,
-    open: ron && interp.kind === "shanpon" && interp.meldIdx === i,
-  }));
+  const melds: FullMeld[] = [
+    ...declared,
+    ...d.melds.map((m, i) => ({
+      ...m,
+      open: ron && interp.kind === "shanpon" && interp.meldIdx === i,
+      kan: false,
+    })),
+  ];
   const seqs = melds.filter((m) => m.kind === "seq");
   const tris = melds.filter((m) => m.kind === "tri");
-  const used = counts.map((c, i) => (c > 0 ? i : -1)).filter((i) => i >= 0);
+  const kans = tris.filter((t) => t.kan).length;
+  const used = allCounts.map((c, i) => (c > 0 ? i : -1)).filter((i) => i >= 0);
   const hasHonor = used.some(isHonor);
+  const sit = situationalYaku(input, closed);
 
   const yaku: YakuItem[] = [];
 
   // ---- 役満 ----
+  yaku.push(...sit.filter((y) => y.yakuman));
   const dragonTris = tris.filter((t) => isDragon(t.start)).length;
   const windTris = tris.filter((t) => t.start >= 27 && t.start <= 30).length;
   if (dragonTris === 3) yaku.push({ name: "大三元", han: 13, yakuman: true });
@@ -245,45 +304,42 @@ function evaluateStandard(
     yaku.push({ name: "小四喜", han: 13, yakuman: true });
   if (tris.length === 4 && tris.every((t) => !t.open))
     yaku.push({ name: "四暗刻", han: 13, yakuman: true });
+  if (kans === 4) yaku.push({ name: "四槓子", han: 13, yakuman: true });
   if (used.every(isHonor)) yaku.push({ name: "字一色", han: 13, yakuman: true });
   if (used.every(isTerminal)) yaku.push({ name: "清老頭", han: 13, yakuman: true });
   if (used.every((i) => GREEN.has(i))) yaku.push({ name: "緑一色", han: 13, yakuman: true });
-  if (!hasHonor && new Set(used.map(suitOf)).size === 1) {
+  if (closed && !hasHonor && new Set(used.map(suitOf)).size === 1) {
     const base = suitOf(used[0]) * 9;
     const ok =
-      counts[base] >= 3 &&
-      counts[base + 8] >= 3 &&
-      [1, 2, 3, 4, 5, 6, 7].every((k) => counts[base + k] >= 1);
+      allCounts[base] >= 3 &&
+      allCounts[base + 8] >= 3 &&
+      [1, 2, 3, 4, 5, 6, 7].every((k) => allCounts[base + k] >= 1);
     if (ok) yaku.push({ name: "九蓮宝燈", han: 13, yakuman: true });
   }
   if (yaku.some((y) => y.yakuman)) return finalize(yaku, 30, interp.kind, input);
 
   // ---- 通常役 ----
   const pairIsYakuhai = isDragon(d.pair) || d.pair === roundIdx || d.pair === seatIdx;
-  const pinfu =
-    tris.length === 0 && !pairIsYakuhai && interp.kind === "ryanmen";
+  const pinfu = closed && tris.length === 0 && !pairIsYakuhai && interp.kind === "ryanmen";
 
-  if (input.riichi) {
-    yaku.push({ name: "リーチ", han: 1 });
-    if (input.ippatsu) yaku.push({ name: "一発", han: 1 });
-  }
-  if (!ron) yaku.push({ name: "門前清自摸和", han: 1 });
+  yaku.push(...sit);
   if (pinfu) yaku.push({ name: "平和", han: 1 });
   if (used.every((i) => !isYaochu(i))) yaku.push({ name: "断幺九", han: 1 });
 
-  const seqKey = seqs.map((s) => s.start).sort((a, b) => a - b);
-  const pairs: number[] = [];
-  const tmp = seqKey.slice();
-  while (tmp.length) {
-    const v = tmp.shift()!;
-    const j = tmp.indexOf(v);
-    if (j >= 0) {
-      tmp.splice(j, 1);
-      pairs.push(v);
+  if (closed) {
+    const tmp = seqs.map((s) => s.start).sort((a, b) => a - b);
+    let pairs = 0;
+    while (tmp.length) {
+      const v = tmp.shift()!;
+      const j = tmp.indexOf(v);
+      if (j >= 0) {
+        tmp.splice(j, 1);
+        pairs++;
+      }
     }
+    if (pairs === 2) yaku.push({ name: "二盃口", han: 3 });
+    else if (pairs === 1) yaku.push({ name: "一盃口", han: 1 });
   }
-  if (pairs.length === 2) yaku.push({ name: "二盃口", han: 3 });
-  else if (pairs.length === 1) yaku.push({ name: "一盃口", han: 1 });
 
   for (const t of tris) {
     if (isDragon(t.start)) {
@@ -300,17 +356,18 @@ function evaluateStandard(
       [0, 1, 2].every((su) => seqs.some((s) => suitOf(s.start) === su && rank(s.start) === r))
     )
   ) {
-    yaku.push({ name: "三色同順", han: 2 });
+    yaku.push({ name: "三色同順", han: han(2, 1) });
   }
   if (
     [0, 1, 2].some((su) =>
       [0, 3, 6].every((r) => seqs.some((s) => suitOf(s.start) === su && rank(s.start) === r))
     )
   ) {
-    yaku.push({ name: "一気通貫", han: 2 });
+    yaku.push({ name: "一気通貫", han: han(2, 1) });
   }
   if (tris.length === 4) yaku.push({ name: "対々和", han: 2 });
   if (tris.filter((t) => !t.open).length === 3) yaku.push({ name: "三暗刻", han: 2 });
+  if (kans === 3) yaku.push({ name: "三槓子", han: 2 });
   if (
     [0, 1, 2, 3, 4, 5, 6, 7, 8].some((r) =>
       [0, 1, 2].every((su) => tris.some((t) => t.start === su * 9 + r))
@@ -320,52 +377,56 @@ function evaluateStandard(
   }
   if (dragonTris === 2 && isDragon(d.pair)) yaku.push({ name: "小三元", han: 2 });
 
-  const allYaochuMelds =
-    isYaochu(d.pair) &&
-    melds.every((m) => (m.kind === "tri" ? isYaochu(m.start) : rank(m.start) === 0 || rank(m.start) === 6));
-  const allTerminalMelds =
-    isTerminal(d.pair) &&
-    melds.every((m) => (m.kind === "tri" ? isTerminal(m.start) : rank(m.start) === 0 || rank(m.start) === 6));
+  const seqOk = (m: FullMeld, terminalOnly: boolean) =>
+    m.kind === "tri"
+      ? terminalOnly
+        ? isTerminal(m.start)
+        : isYaochu(m.start)
+      : rank(m.start) === 0 || rank(m.start) === 6;
+  const allYaochuMelds = isYaochu(d.pair) && melds.every((m) => seqOk(m, false));
+  const allTerminalMelds = isTerminal(d.pair) && melds.every((m) => seqOk(m, true));
   if (seqs.length === 0 && used.every(isYaochu)) {
     yaku.push({ name: "混老頭", han: 2 });
   } else if (seqs.length > 0 && allTerminalMelds) {
-    yaku.push({ name: "純全帯幺九", han: 3 });
+    yaku.push({ name: "純全帯幺九", han: han(3, 2) });
   } else if (seqs.length > 0 && allYaochuMelds) {
-    yaku.push({ name: "混全帯幺九", han: 2 });
+    yaku.push({ name: "混全帯幺九", han: han(2, 1) });
   }
 
   const suits = new Set(used.filter((i) => !isHonor(i)).map(suitOf));
-  if (suits.size === 1) yaku.push(hasHonor ? { name: "混一色", han: 3 } : { name: "清一色", han: 6 });
+  if (suits.size === 1) {
+    yaku.push(hasHonor ? { name: "混一色", han: han(3, 2) } : { name: "清一色", han: han(6, 5) });
+  }
 
   // ---- 符 ----
   let fu = 20;
-  if (ron) fu += 10;
-  else if (!pinfu) fu += 2;
-  for (const t of melds.filter((m) => m.kind === "tri")) {
-    const base = isYaochu(t.start) ? 4 : 2;
-    fu += t.open ? base : base * 2;
+  if (ron) {
+    if (closed) fu += 10;
+  } else if (!pinfu) {
+    fu += 2;
+  }
+  for (const t of tris) {
+    fu += (isYaochu(t.start) ? 4 : 2) * (t.open ? 1 : 2) * (t.kan ? 4 : 1);
   }
   if (isDragon(d.pair)) fu += 2;
   if (d.pair === roundIdx) fu += 2;
   if (d.pair === seatIdx) fu += 2;
   if (interp.kind === "kanchan" || interp.kind === "penchan" || interp.kind === "tanki") fu += 2;
 
-  return finalize(yaku, ceil10(fu), interp.kind, input);
+  let finalFu = ceil10(fu);
+  if (!closed && finalFu === 20) finalFu = 30;
+  return finalize(yaku, finalFu, interp.kind, input);
 }
 
 function evaluateChiitoitsu(counts: number[], input: HandInput): Candidate | null {
-  const pairIdx = counts.map((c, i) => (c === 2 ? i : -1)).filter((i) => i >= 0);
-  if (pairIdx.length !== 7) return null;
-  const used = pairIdx;
-  const yaku: YakuItem[] = [];
-  if (used.every(isHonor)) return finalize([{ name: "字一色", han: 13, yakuman: true }], 25, "tanki", input);
+  const used = counts.map((c, i) => (c === 2 ? i : -1)).filter((i) => i >= 0);
+  if (used.length !== 7) return null;
+  const sit = situationalYaku(input, true);
+  const yaku: YakuItem[] = [...sit.filter((y) => y.yakuman)];
+  if (used.every(isHonor)) yaku.push({ name: "字一色", han: 13, yakuman: true });
+  if (yaku.length > 0) return finalize(yaku, 25, "tanki", input);
 
-  if (input.riichi) {
-    yaku.push({ name: "リーチ", han: 1 });
-    if (input.ippatsu) yaku.push({ name: "一発", han: 1 });
-  }
-  if (input.winType === "tsumo") yaku.push({ name: "門前清自摸和", han: 1 });
-  yaku.push({ name: "七対子", han: 2 });
+  yaku.push(...sit, { name: "七対子", han: 2 });
   if (used.every((i) => !isYaochu(i))) yaku.push({ name: "断幺九", han: 1 });
   if (used.every(isYaochu)) yaku.push({ name: "混老頭", han: 2 });
   const suits = new Set(used.filter((i) => !isHonor(i)).map(suitOf));
@@ -378,48 +439,86 @@ function evaluateKokushi(counts: number[], input: HandInput): Candidate | null {
   const orphans = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
   if (!orphans.every((i) => counts[i] >= 1)) return null;
   if (counts.reduce((s, c) => s + c, 0) !== 14) return null;
-  return finalize([{ name: "国士無双", han: 13, yakuman: true }], 30, "tanki", input);
+  const yaku: YakuItem[] = [
+    ...situationalYaku(input, true).filter((y) => y.yakuman),
+    { name: "国士無双", han: 13, yakuman: true },
+  ];
+  return finalize(yaku, 30, "tanki", input);
 }
 
-/** 手牌13枚+和了牌1枚から最高点の解釈で点数を計算する。入力に誤りがあればerrorsを返す。 */
+/** 手牌+和了牌+副露から最高点の解釈で点数を計算する。入力に誤りがあればerrorsを返す。 */
 export function evaluateHand(input: HandInput): HandEvaluation {
+  const melds = input.melds ?? [];
+  const cap = 13 - 3 * melds.length;
   const errors: string[] = [];
-  const total = input.hand.length + (input.agari ? 1 : 0);
 
-  if (input.hand.length < 13) {
-    errors.push(`手牌が${input.hand.length}枚です。あと${13 - input.hand.length}枚入力してください`);
+  for (const m of melds) {
+    if (m.kind === "chi") {
+      const i = codeToIndex(m.tile);
+      if (i >= 27 || i % 9 > 6) errors.push(`チーの順子が作れません(${m.tile}から始まる順子はありません)`);
+    }
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
+  if (input.hand.length < cap) {
+    errors.push(`手牌が${input.hand.length}枚です。あと${cap - input.hand.length}枚入力してください`);
   }
   if (!input.agari) errors.push("和了牌が選ばれていません");
   if (errors.length > 0) return { ok: false, errors };
-  if (total !== 14) return { ok: false, errors: [`牌が${total}枚です。手牌13枚+和了牌1枚にしてください`] };
+  if (input.hand.length > cap) {
+    return { ok: false, errors: [`手牌が${input.hand.length}枚です。副露${melds.length}組なら${cap}枚にしてください`] };
+  }
 
   const agari = input.agari as TileCode;
-  const counts = new Array(34).fill(0) as number[];
-  for (const t of [...input.hand, agari]) counts[codeToIndex(t)]++;
-  const over = counts.findIndex((c) => c > 4);
+  const concealed = new Array(34).fill(0) as number[];
+  for (const t of [...input.hand, agari]) concealed[codeToIndex(t)]++;
+  const allCounts = concealed.slice();
+  for (const m of melds) for (const i of declaredTiles(m)) allCounts[i]++;
+  const over = allCounts.findIndex((c) => c > 4);
   if (over >= 0) {
     return { ok: false, errors: [`同じ牌(${indexToCode(over)})が5枚以上あります。入力を確認してください`] };
   }
 
+  const closed = melds.every((m) => m.kind === "ankan");
+  const hasKan = melds.some((m) => m.kind === "minkan" || m.kind === "ankan");
+  const riichi = input.riichi || input.doubleRiichi;
+  if (riichi && !closed) errors.push("鳴いているためリーチはできません(暗槓のみ可)");
+  if (input.rinshan && input.winType !== "tsumo") errors.push("嶺上開花はツモ和了のときのみ成立します");
+  if (input.rinshan && !hasKan) errors.push("嶺上開花にはカン(副露)の入力が必要です");
+  if (input.chankan && input.winType !== "ron") errors.push("槍槓はロン和了のときのみ成立します");
+  if (input.rinshan && input.lastTile) errors.push("嶺上開花と海底摸月は同時に成立しません");
+  if (input.heavenEarth) {
+    if (input.winType !== "tsumo") errors.push("天和・地和はツモ和了のときのみ成立します");
+    if (melds.length > 0) errors.push("天和・地和は副露があると成立しません");
+    if (riichi || input.rinshan || input.chankan || input.lastTile) {
+      errors.push("天和・地和はリーチや他の状況役と同時に成立しません");
+    }
+  }
+  if (errors.length > 0) return { ok: false, errors };
+
   const w = codeToIndex(agari);
+  const declared = melds.map(declaredToFull);
   const candidates: Candidate[] = [];
 
-  for (const d of decompose(counts)) {
+  for (const d of decompose(concealed)) {
     for (const interp of interpretations(d, w)) {
-      const c = evaluateStandard(d, interp, counts, input);
+      const c = evaluateStandard(d, interp, allCounts, input, declared);
       if (c) candidates.push(c);
     }
   }
-  const chiitoi = evaluateChiitoitsu(counts, input);
-  if (chiitoi) candidates.push(chiitoi);
-  const kokushi = evaluateKokushi(counts, input);
-  if (kokushi) candidates.push(kokushi);
+  if (melds.length === 0) {
+    const chiitoi = evaluateChiitoitsu(concealed, input);
+    if (chiitoi) candidates.push(chiitoi);
+    const kokushi = evaluateKokushi(concealed, input);
+    if (kokushi) candidates.push(kokushi);
+  }
 
   if (candidates.length === 0) {
     const hasShape =
-      decompose(counts).length > 0 ||
-      counts.filter((c) => c === 2).length === 7 ||
-      [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33].every((i) => counts[i] >= 1);
+      decompose(concealed).length > 0 ||
+      (melds.length === 0 &&
+        (concealed.filter((c) => c === 2).length === 7 ||
+          [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33].every((i) => concealed[i] >= 1)));
     return {
       ok: false,
       errors: [

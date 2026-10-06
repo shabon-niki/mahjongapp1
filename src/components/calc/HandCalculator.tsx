@@ -5,7 +5,10 @@ import Image from "next/image";
 import { tileImageSrc, tileLabel, type TileCode } from "@/lib/mahjong/tiles";
 import {
   codeToIndex,
+  declaredTiles,
   evaluateHand,
+  indexToCode,
+  type DeclaredMeld,
   type HandEvaluation,
   type Payment,
   type Wind,
@@ -26,6 +29,16 @@ const WINDS: { value: Wind; label: string }[] = [
   { value: "west", label: "西" },
   { value: "north", label: "北" },
 ];
+
+const MELD_LABELS: Record<DeclaredMeld["kind"], string> = {
+  chi: "チー",
+  pon: "ポン",
+  minkan: "明槓",
+  ankan: "暗槓",
+};
+
+type RiichiMode = "none" | "riichi" | "double";
+type Situation = { rinshan: boolean; chankan: boolean; lastTile: boolean; heavenEarth: boolean };
 
 const byIndex = (a: TileCode, b: TileCode) => codeToIndex(a) - codeToIndex(b);
 
@@ -135,9 +148,17 @@ function PaymentText({ payment }: { payment: Payment }) {
 export function HandCalculator() {
   const [hand, setHand] = useState<TileCode[]>([]);
   const [agari, setAgari] = useState<TileCode | null>(null);
+  const [melds, setMelds] = useState<DeclaredMeld[]>([]);
+  const [meldMode, setMeldMode] = useState<DeclaredMeld["kind"] | null>(null);
   const [winType, setWinType] = useState<"tsumo" | "ron">("ron");
-  const [riichi, setRiichi] = useState(false);
+  const [riichiMode, setRiichiMode] = useState<RiichiMode>("none");
   const [ippatsu, setIppatsu] = useState(false);
+  const [situation, setSituation] = useState<Situation>({
+    rinshan: false,
+    chankan: false,
+    lastTile: false,
+    heavenEarth: false,
+  });
   const [isDealer, setIsDealer] = useState(false);
   const [roundWind, setRoundWind] = useState<Wind>("east");
   const [seatWind, setSeatWind] = useState<Wind>("south");
@@ -145,20 +166,73 @@ export function HandCalculator() {
   const [result, setResult] = useState<HandEvaluation | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const all = agari ? [...hand, agari] : hand;
-  const countOf = (code: TileCode) => all.filter((c) => c === code).length;
-  const total = all.length;
-  const target = hand.length < 13 ? "hand" : "agari";
+  const cap = 13 - 3 * melds.length;
+  const closed = melds.every((m) => m.kind === "ankan");
+  const hasKan = melds.some((m) => m.kind === "minkan" || m.kind === "ankan");
+  const canRinshan = winType === "tsumo" && hasKan;
+  const canChankan = winType === "ron";
+  const canHeavenEarth = winType === "tsumo" && melds.length === 0;
+  const eff = {
+    rinshan: situation.rinshan && canRinshan,
+    chankan: situation.chankan && canChankan,
+    lastTile: situation.lastTile,
+    heavenEarth: situation.heavenEarth && canHeavenEarth,
+  };
+
+  const meldTileCodes = (m: DeclaredMeld) => declaredTiles(m).map(indexToCode);
+  const countOf = (code: TileCode) =>
+    hand.filter((c) => c === code).length +
+    (agari === code ? 1 : 0) +
+    melds.reduce((n, m) => n + meldTileCodes(m).filter((c) => c === code).length, 0);
+  const target = hand.length < cap ? "hand" : "agari";
 
   const touch = () => {
     setResult(null);
     setNotice(null);
   };
 
-  const addTile = (code: TileCode) => {
+  const addMeld = (code: TileCode, kind: DeclaredMeld["kind"]) => {
     setResult(null);
-    if (total >= 14) {
-      setNotice("牌が14枚(手牌13枚+和了牌1枚)を超えています。不要な牌をタップして外してください");
+    if (melds.length >= 4) {
+      setNotice("副露は4組までです");
+      return;
+    }
+    const idx = codeToIndex(code);
+    if (kind === "chi" && (idx >= 27 || idx % 9 > 6)) {
+      setNotice("チーは、順子の一番小さい数牌をタップしてください(例: 345萬なら三萬)。八・九・字牌からは作れません");
+      return;
+    }
+    if (hand.length > 13 - 3 * (melds.length + 1)) {
+      setNotice("手牌の枚数が多いため副露を追加できません。先に手牌から牌を外してください");
+      return;
+    }
+    const meld: DeclaredMeld = { kind, tile: code };
+    const tiles = meldTileCodes(meld);
+    for (const c of new Set(tiles)) {
+      const need = tiles.filter((x) => x === c).length;
+      if (countOf(c) + need > 4) {
+        setNotice(`${tileLabel(c)}は同じ牌を4枚までしか使えません。この副露は追加できません`);
+        return;
+      }
+    }
+    setNotice(null);
+    setMelds((m) => [...m, meld]);
+    setMeldMode(null);
+    if (kind !== "ankan") {
+      setRiichiMode("none");
+      setIppatsu(false);
+      setSituation((st) => ({ ...st, heavenEarth: false }));
+    }
+  };
+
+  const addTile = (code: TileCode) => {
+    if (meldMode) {
+      addMeld(code, meldMode);
+      return;
+    }
+    setResult(null);
+    if (hand.length >= cap && agari) {
+      setNotice(`牌が多すぎます(手牌${cap}枚+和了牌1枚まで)。不要な牌をタップして外してください`);
       return;
     }
     if (countOf(code) >= 4) {
@@ -166,7 +240,7 @@ export function HandCalculator() {
       return;
     }
     setNotice(null);
-    if (hand.length < 13) setHand((h) => [...h, code].sort(byIndex));
+    if (hand.length < cap) setHand((h) => [...h, code].sort(byIndex));
     else setAgari(code);
   };
 
@@ -175,15 +249,42 @@ export function HandCalculator() {
     setHand((h) => h.filter((_, idx) => idx !== i));
   };
 
+  const toggleSituation = (key: keyof Situation, on: boolean) => {
+    touch();
+    if (on && key === "heavenEarth") {
+      setRiichiMode("none");
+      setIppatsu(false);
+    }
+    setSituation((st) => {
+      if (!on) return { ...st, [key]: false };
+      if (key === "heavenEarth") {
+        return { rinshan: false, chankan: false, lastTile: false, heavenEarth: true };
+      }
+      return {
+        ...st,
+        [key]: true,
+        heavenEarth: false,
+        ...(key === "rinshan" ? { lastTile: false } : {}),
+        ...(key === "lastTile" ? { rinshan: false } : {}),
+      };
+    });
+  };
+
   const calculate = () => {
     setNotice(null);
     setResult(
       evaluateHand({
         hand,
         agari,
+        melds,
         winType,
-        riichi,
-        ippatsu: riichi && ippatsu,
+        riichi: riichiMode === "riichi",
+        doubleRiichi: riichiMode === "double",
+        ippatsu: riichiMode !== "none" && ippatsu,
+        rinshan: eff.rinshan,
+        chankan: eff.chankan,
+        lastTile: eff.lastTile,
+        heavenEarth: eff.heavenEarth,
         isDealer,
         roundWind,
         seatWind,
@@ -195,6 +296,8 @@ export function HandCalculator() {
   const clearAll = () => {
     setHand([]);
     setAgari(null);
+    setMelds([]);
+    setMeldMode(null);
     touch();
   };
 
@@ -203,7 +306,7 @@ export function HandCalculator() {
       <Card className="space-y-3 p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink-900">
-            手牌 <span className="text-ink-400">{hand.length}/13</span>
+            手牌 <span className="text-ink-400">{hand.length}/{cap}</span>
           </h2>
           <button type="button" onClick={clearAll} className="text-xs text-ink-400 underline">
             全部クリア
@@ -242,15 +345,80 @@ export function HandCalculator() {
             </button>
           ) : (
             <span className="text-xs text-ink-400">
-              {target === "agari" ? "次にタップした牌が和了牌になります" : "手牌13枚を入力すると和了牌を選べます"}
+              {target === "agari" ? "次にタップした牌が和了牌になります" : `手牌${cap}枚を入力すると和了牌を選べます`}
             </span>
           )}
         </div>
       </Card>
 
       <Card className="space-y-2 p-4">
+        <h2 className="text-sm font-semibold text-ink-900">
+          副露(鳴き) <span className="text-ink-400">{melds.length}/4</span>
+        </h2>
+        <div className="grid grid-cols-4 gap-1.5">
+          {(Object.keys(MELD_LABELS) as DeclaredMeld["kind"][]).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => {
+                touch();
+                setMeldMode((m) => (m === kind ? null : kind));
+              }}
+              className={`rounded-lg border py-2 text-sm font-medium transition-colors ${
+                meldMode === kind
+                  ? "border-gold-500 bg-gold-500/15 text-board-800"
+                  : "border-ink-400/30 bg-washi-100 text-ink-900"
+              }`}
+            >
+              ＋{MELD_LABELS[kind]}
+            </button>
+          ))}
+        </div>
+        {melds.length === 0 ? (
+          <p className="text-xs text-ink-400">鳴きなし(門前)。鳴いた場合は上のボタンを押してから牌をタップします</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {melds.map((m, i) => (
+              <li key={`${m.kind}-${m.tile}-${i}`} className="flex items-center gap-2">
+                <span className="w-9 shrink-0 text-xs text-ink-600">{MELD_LABELS[m.kind]}</span>
+                <div className="flex flex-1 gap-0.5">
+                  {meldTileCodes(m).map((c, ti) => (
+                    <span
+                      key={ti}
+                      className="h-9 w-7 overflow-hidden rounded border border-gold-500/40 bg-washi-100"
+                    >
+                      <Tile code={c} size="sm" />
+                    </span>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  aria-label={`${MELD_LABELS[m.kind]}を取り消す`}
+                  onClick={() => {
+                    touch();
+                    setMelds((all) => all.filter((_, idx) => idx !== i));
+                  }}
+                  className="h-8 w-8 rounded-lg border border-ink-400/30 text-ink-600"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card className="space-y-2 p-4">
         <p className="text-xs text-ink-600">
-          {target === "hand" ? `手牌を入力中(あと${13 - hand.length}枚)` : agari ? "入力完了" : "和了牌を選んでください"}
+          {meldMode
+            ? meldMode === "chi"
+              ? "チー: 順子の一番小さい牌をタップ(例: 345萬 → 三萬)"
+              : `${MELD_LABELS[meldMode]}: 対象の牌をタップ`
+            : target === "hand"
+              ? `手牌を入力中(あと${cap - hand.length}枚)`
+              : agari
+                ? "入力完了"
+                : "和了牌を選んでください"}
         </p>
         {SUITS.map((suit) => (
           <div key={suit.label} className="flex items-center gap-2">
@@ -298,24 +466,62 @@ export function HandCalculator() {
             { value: "tsumo", label: "ツモ" },
           ]}
         />
-        <SwitchRow
-          label="リーチ"
-          checked={riichi}
-          onChange={(v) => {
-            touch();
-            setRiichi(v);
-            if (!v) setIppatsu(false);
-          }}
-        />
+        <div className="space-y-1.5">
+          <p className="text-xs text-ink-400">リーチ{closed ? "" : "(鳴いているため不可)"}</p>
+          <Segmented<RiichiMode>
+            value={riichiMode}
+            options={[
+              { value: "none", label: "なし" },
+              { value: "riichi", label: "リーチ" },
+              { value: "double", label: "ダブルリーチ" },
+            ]}
+            onChange={(v) => {
+              if (v !== "none" && !closed) {
+                setNotice("鳴いているためリーチはできません(暗槓のみ可)");
+                return;
+              }
+              touch();
+              setRiichiMode(v);
+              if (v === "none") setIppatsu(false);
+              else setSituation((st) => ({ ...st, heavenEarth: false }));
+            }}
+          />
+        </div>
         <SwitchRow
           label="一発"
-          checked={riichi && ippatsu}
-          disabled={!riichi}
+          checked={riichiMode !== "none" && ippatsu}
+          disabled={riichiMode === "none"}
           onChange={(v) => {
             touch();
             setIppatsu(v);
           }}
         />
+        <div className="space-y-1 border-t border-ink-400/10 pt-2">
+          <p className="text-xs text-ink-400">運の役・状況役</p>
+          <SwitchRow
+            label="嶺上開花(カン後のツモ)"
+            checked={eff.rinshan}
+            disabled={!canRinshan}
+            onChange={(v) => toggleSituation("rinshan", v)}
+          />
+          <SwitchRow
+            label="槍槓(他家のカンにロン)"
+            checked={eff.chankan}
+            disabled={!canChankan}
+            onChange={(v) => toggleSituation("chankan", v)}
+          />
+          <SwitchRow
+            label={winType === "tsumo" ? "海底摸月(最後の牌でツモ)" : "河底撈魚(最後の捨て牌でロン)"}
+            checked={eff.lastTile}
+            onChange={(v) => toggleSituation("lastTile", v)}
+          />
+          <SwitchRow
+            label="天和・地和(配牌・第一ツモで和了)"
+            checked={eff.heavenEarth}
+            disabled={!canHeavenEarth}
+            onChange={(v) => toggleSituation("heavenEarth", v)}
+          />
+        </div>
         <SwitchRow
           label="親(東家)"
           checked={isDealer}
@@ -352,7 +558,7 @@ export function HandCalculator() {
             </button>
           </div>
         </div>
-        <p className="text-xs text-ink-400">※ 門前(鳴きなし)の手牌のみ対応しています。</p>
+        <p className="text-xs text-ink-400">※ ドラは表・裏・赤・カンドラの合計枚数を入力してください。</p>
       </Card>
 
       <Button variant="primary" className="w-full" onClick={calculate}>

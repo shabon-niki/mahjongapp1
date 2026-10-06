@@ -167,4 +167,172 @@ describe("evaluateHand", () => {
     expect(indexToCode(26)).toBe("9s");
     expect(indexToCode(33)).toBe("中");
   });
+
+  describe("副露", () => {
+    it("中ポン+役牌: 1翻30符(鳴きはメンゼン加符なし)", () => {
+      const r = evaluateHand(
+        input("234m567p78s55m", "9s", { melds: [{ kind: "pon", tile: "中" }] })
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.yaku.map((y) => y.name)).toEqual(["役牌(中)"]);
+        expect(r.han).toBe(1);
+        expect(r.fu).toBe(30);
+        expect(r.payment).toEqual({ kind: "ron", total: 1000 });
+      }
+    });
+
+    it("暗槓はメンゼン扱いでリーチ可: 暗槓(幺九)32符+単騎で70符", () => {
+      const r = evaluateHand(
+        input("234p567p789s5m", "5m", { riichi: true, melds: [{ kind: "ankan", tile: "1m" }] })
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.fu).toBe(70);
+        expect(r.payment).toEqual({ kind: "ron", total: 2300 });
+      }
+    });
+
+    it("明槓の符は暗槓の半分(幺九牌の明槓16符)", () => {
+      const r = evaluateHand(
+        input("234m567p789s5m", "5m", {
+          winType: "tsumo",
+          rinshan: true,
+          melds: [{ kind: "minkan", tile: "中" }],
+        })
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.yaku.map((y) => y.name).sort()).toEqual(["嶺上開花", "役牌(中)"].sort());
+        expect(r.han).toBe(2);
+        expect(r.fu).toBe(40);
+        expect(r.payment).toMatchObject({ kind: "tsumo", fromDealer: 1300, fromOthers: 700 });
+      }
+    });
+
+    it("鳴いた清一色は5翻(門前6翻より1翻下がる)", () => {
+      const r = evaluateHand(
+        input("234m567m11m78m", "9m", { melds: [{ kind: "chi", tile: "7m" }] })
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.yaku.map((y) => y.name)).toContain("清一色");
+        expect(r.yaku.find((y) => y.name === "清一色")?.han).toBe(5);
+      }
+    });
+
+    it("鳴き平和形はロンでも30符に引き上げる", () => {
+      const r = evaluateHand(
+        input("234m567p67s55m", "8s", { melds: [{ kind: "chi", tile: "2p" }] })
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.yaku.map((y) => y.name)).toEqual(["断幺九"]);
+        expect(r.fu).toBe(30);
+      }
+    });
+
+    it("鳴いているのにリーチするとエラー", () => {
+      const r = evaluateHand(
+        input("234m567p78s55m", "9s", { riichi: true, melds: [{ kind: "pon", tile: "中" }] })
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.errors[0]).toContain("リーチ");
+    });
+
+    it("副露を含む手牌枚数の不足・超過を検出する", () => {
+      const few = evaluateHand(input("234m567p", "9s", { melds: [{ kind: "pon", tile: "中" }] }));
+      expect(few.ok).toBe(false);
+      const many = evaluateHand(input("123m456p789s11z1s", "2s", { melds: [{ kind: "pon", tile: "中" }] }));
+      expect(many.ok).toBe(false);
+    });
+
+    it("チーできない牌(8・9・字牌始まり)はエラー", () => {
+      const r = evaluateHand(input("234m567p78s55m", "9s", { melds: [{ kind: "chi", tile: "8m" }] }));
+      expect(r.ok).toBe(false);
+    });
+
+    it("副露込みで同じ牌が5枚あるとエラー", () => {
+      const r = evaluateHand(input("234m567p78s1m1m", "9s", { melds: [{ kind: "ankan", tile: "1m" }] }));
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.errors[0]).toContain("5枚以上");
+    });
+
+    it("四槓子は役満", () => {
+      const r = evaluateHand(
+        input("5m", "5m", {
+          winType: "tsumo",
+          melds: [
+            { kind: "ankan", tile: "1m" },
+            { kind: "ankan", tile: "2p" },
+            { kind: "minkan", tile: "3s" },
+            { kind: "minkan", tile: "東" },
+          ],
+        })
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.yaku.map((y) => y.name)).toContain("四槓子");
+    });
+  });
+
+  describe("状況役", () => {
+    const base = "234m567p678s34p55m";
+
+    it("槍槓: +1翻(平和+断幺九+槍槓 = 3翻30符 3900点)", () => {
+      const r = evaluateHand(input(base, "2p", { chankan: true }));
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.yaku.map((y) => y.name)).toContain("槍槓");
+        expect(r.han).toBe(3);
+        expect(r.payment).toEqual({ kind: "ron", total: 3900 });
+      }
+    });
+
+    it("海底摸月(ツモ)・河底撈魚(ロン)", () => {
+      const tsumo = evaluateHand(input(base, "2p", { winType: "tsumo", lastTile: true }));
+      expect(tsumo.ok && tsumo.yaku.map((y) => y.name)).toContain("海底摸月");
+      if (tsumo.ok) expect(tsumo.han).toBe(4);
+      const ron = evaluateHand(input(base, "2p", { lastTile: true }));
+      expect(ron.ok && ron.yaku.map((y) => y.name)).toContain("河底撈魚");
+    });
+
+    it("ダブルリーチは2翻(リーチと重複しない)", () => {
+      const r = evaluateHand(input(base, "2p", { doubleRiichi: true }));
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const names = r.yaku.map((y) => y.name);
+        expect(names).toContain("ダブルリーチ");
+        expect(names).not.toContain("リーチ");
+        expect(r.han).toBe(4);
+      }
+    });
+
+    it("天和(親)・地和(子)は役満", () => {
+      const tenhou = evaluateHand(
+        input(base, "2p", { winType: "tsumo", isDealer: true, heavenEarth: true })
+      );
+      expect(tenhou.ok).toBe(true);
+      if (tenhou.ok) {
+        expect(tenhou.yaku[0].name).toBe("天和");
+        expect(tenhou.payment).toMatchObject({ kind: "tsumo", total: 48000 });
+      }
+      const chiihou = evaluateHand(input(base, "2p", { winType: "tsumo", heavenEarth: true }));
+      expect(chiihou.ok && chiihou.yaku[0].name).toBe("地和");
+    });
+
+    it("七対子にも状況役が付く", () => {
+      const r = evaluateHand(input("1133m5577p9922s4s", "4s", { winType: "tsumo", lastTile: true }));
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.han).toBe(4);
+    });
+
+    it("条件を満たさない状況役はエラー", () => {
+      expect(evaluateHand(input(base, "2p", { rinshan: true })).ok).toBe(false);
+      expect(evaluateHand(input(base, "2p", { winType: "tsumo", chankan: true })).ok).toBe(false);
+      expect(evaluateHand(input(base, "2p", { heavenEarth: true })).ok).toBe(false);
+      expect(
+        evaluateHand(input(base, "2p", { winType: "tsumo", rinshan: true, lastTile: true, melds: [] })).ok
+      ).toBe(false);
+    });
+  });
 });

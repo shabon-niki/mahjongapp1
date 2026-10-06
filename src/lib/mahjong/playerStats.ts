@@ -1,10 +1,10 @@
-export type PlayerGameRow = { rank: number; totalRankingPoint: number };
+export type PlayerGameRow = { rank: number; totalRankingPoint: number; finalScore: number };
 
 export type PlayerStats = {
   gamesPlayed: number;
   totalPoint: number;
-  /** 1半荘あたりの平均ポイント(totalRankingPoint の平均) */
-  averagePoint: number | null;
+  /** 1半荘あたりの平均持ち点(25000点持ちなどの素の最終持ち点の平均) */
+  averageScore: number | null;
   averageRank: number | null;
   rankCounts: [number, number, number, number];
   /** トップ(1位)率 */
@@ -20,9 +20,11 @@ export function computePlayerStats(rows: PlayerGameRow[]): PlayerStats {
   const rankCounts: [number, number, number, number] = [0, 0, 0, 0];
   let totalPoint = 0;
   let rankSum = 0;
+  let scoreSum = 0;
   for (const r of rows) {
     totalPoint += r.totalRankingPoint;
     rankSum += r.rank;
+    scoreSum += r.finalScore;
     if (r.rank >= 1 && r.rank <= 4) rankCounts[r.rank - 1]++;
   }
 
@@ -31,7 +33,7 @@ export function computePlayerStats(rows: PlayerGameRow[]): PlayerStats {
   return {
     gamesPlayed,
     totalPoint,
-    averagePoint: gamesPlayed > 0 ? totalPoint / gamesPlayed : null,
+    averageScore: gamesPlayed > 0 ? scoreSum / gamesPlayed : null,
     averageRank: gamesPlayed > 0 ? rankSum / gamesPlayed : null,
     rankCounts,
     topRate: rate(rankCounts[0]),
