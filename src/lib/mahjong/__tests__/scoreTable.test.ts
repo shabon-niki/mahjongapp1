@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { calculateHanFuScore } from "../scoreTable";
+import {
+  calculateHanFuScore,
+  FU_COMPONENTS,
+  FU_WORKED_EXAMPLES,
+} from "../scoreTable";
+import { evaluateHand } from "../handScore";
 
 describe("calculateHanFuScore", () => {
   it("30符3翻: 子ロン3900, 親ロン5800", () => {
@@ -39,5 +44,34 @@ describe("calculateHanFuScore", () => {
     const s = calculateHanFuScore(1, 30);
     // base = 30*8 = 240, 子ロン = ceil(240*4/100)*100 = 1000
     expect(s.nonDealerRon).toBe(1000);
+  });
+});
+
+describe("符計算の実例が計算エンジンと一致する", () => {
+  for (const ex of FU_WORKED_EXAMPLES) {
+    it(ex.title, () => {
+      const r = evaluateHand({
+        hand: ex.engine.hand,
+        melds: ex.engine.melds,
+        agari: ex.agari,
+        winType: ex.winType,
+        riichi: false,
+        ippatsu: false,
+        isDealer: false,
+        roundWind: "east",
+        seatWind: "south",
+        dora: 0,
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.fu).toBe(ex.total);
+        const raw = ex.breakdown.reduce((sum, b) => sum + b.fu, 0);
+        expect(Math.ceil(raw / 10) * 10).toBe(ex.total);
+      }
+    });
+  }
+
+  it("符の加算要素すべてに成立条件(how)が書かれている", () => {
+    for (const c of FU_COMPONENTS) expect(c.how.length).toBeGreaterThan(5);
   });
 });
