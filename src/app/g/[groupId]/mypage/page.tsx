@@ -1,22 +1,22 @@
 import Link from "next/link";
 import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  getConfirmedGameResults,
-  getPersonalGameStats,
-} from "@/lib/mahjong/queries";
+import { getConfirmedGameResults } from "@/lib/mahjong/queries";
 import { calculateRanking, toPlayCountBonusRule } from "@/lib/mahjong/ranking";
 import { getSeasonYear, getQuarterForDate, getSeasonRange, getQuarterRange } from "@/lib/mahjong/season";
 import { EXPERIENCE_LABELS } from "@/lib/mahjong/experience";
 import { Card } from "@/components/ui/Card";
-import { PlayerStatsCard } from "@/components/ui/PlayerStatsCard";
+import { MemberStatsView } from "@/components/stats/MemberStatsView";
 
 export default async function MyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ groupId: string }>;
+  searchParams: Promise<{ year?: string; period?: string }>;
 }) {
   const { groupId } = await params;
+  const query = await searchParams;
   const { user } = await requireMembership(groupId);
   const group = await prisma.group.findUniqueOrThrow({
     where: { id: groupId },
@@ -36,8 +36,6 @@ export default async function MyPage({
   const seasonEntry = seasonRanking.find((r) => r.userId === user.id);
   const quarterEntry = quarterRanking.find((r) => r.userId === user.id);
 
-  const seasonPersonal = await getPersonalGameStats(groupId, user.id, seasonRange);
-  const allTimePersonal = await getPersonalGameStats(groupId, user.id);
 
   return (
     <div className="space-y-5">
@@ -81,15 +79,12 @@ export default async function MyPage({
         </Card>
       </div>
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">今シーズンの成績</h2>
-        <PlayerStatsCard stats={seasonPersonal} />
-      </div>
-
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">通算の成績</h2>
-        <PlayerStatsCard stats={allTimePersonal} />
-      </div>
+      <MemberStatsView
+        groupId={groupId}
+        userId={user.id}
+        basePath={`/g/${groupId}/mypage`}
+        query={query}
+      />
     </div>
   );
 }

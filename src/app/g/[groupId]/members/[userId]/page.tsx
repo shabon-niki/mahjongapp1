@@ -2,34 +2,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPersonalGameStats } from "@/lib/mahjong/queries";
-import { getSeasonYear, getSeasonRange, seasonShortLabel } from "@/lib/mahjong/season";
 import { EXPERIENCE_LABELS } from "@/lib/mahjong/experience";
-import { PlayerStatsCard } from "@/components/ui/PlayerStatsCard";
+import { MemberStatsView } from "@/components/stats/MemberStatsView";
 
 export default async function MemberStatsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ groupId: string; userId: string }>;
+  searchParams: Promise<{ year?: string; period?: string }>;
 }) {
   const { groupId, userId } = await params;
+  const query = await searchParams;
   await requireMembership(groupId);
 
-  const [group, target] = await Promise.all([
-    prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
-    prisma.groupMembership.findUnique({
-      where: { groupId_userId: { groupId, userId } },
-      include: { user: true },
-    }),
-  ]);
+  const target = await prisma.groupMembership.findUnique({
+    where: { groupId_userId: { groupId, userId } },
+    include: { user: true },
+  });
   if (!target) notFound();
-
-  const seasonYear = getSeasonYear(new Date(), group.seasonStartMonth);
-  const seasonRange = getSeasonRange(seasonYear, group.seasonStartMonth);
-  const [seasonStats, allTimeStats] = await Promise.all([
-    getPersonalGameStats(groupId, userId, seasonRange),
-    getPersonalGameStats(groupId, userId),
-  ]);
 
   return (
     <div className="space-y-5">
@@ -41,17 +32,12 @@ export default async function MemberStatsPage({
         <p className="mt-0.5 text-sm text-ink-600">{EXPERIENCE_LABELS[target.user.experienceLevel]}</p>
       </div>
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">
-          今シーズンの成績({seasonShortLabel(seasonYear, group.seasonNumberOffset)})
-        </h2>
-        <PlayerStatsCard stats={seasonStats} />
-      </div>
-
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">通算の成績</h2>
-        <PlayerStatsCard stats={allTimeStats} />
-      </div>
+      <MemberStatsView
+        groupId={groupId}
+        userId={userId}
+        basePath={`/g/${groupId}/members/${userId}`}
+        query={query}
+      />
     </div>
   );
 }

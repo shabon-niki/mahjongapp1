@@ -33,9 +33,9 @@ export function tileImageSrc(code: TileCode): string {
   const m = code.match(/^([1-9])([msp])$/);
   if (m) {
     const [, num, suit] = m;
-    return `/tiles/${suit}${num}.gif`;
+    return `/tiles/${suit}${num}.webp`;
   }
-  return `/tiles/${HONOR_IMAGE[code] ?? "haku"}.gif`;
+  return `/tiles/${HONOR_IMAGE[code] ?? "haku"}.webp`;
 }
 
 /** 役の例を表す牌グループ(1グループ=1面子/雀頭のまとまり) */

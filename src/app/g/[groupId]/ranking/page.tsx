@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getConfirmedGameResults } from "@/lib/mahjong/queries";
+import { getConfirmedGameResults, getAvailableSeasonYears } from "@/lib/mahjong/queries";
 import { calculateRanking, toPlayCountBonusRule, type PlayCountBonusRule } from "@/lib/mahjong/ranking";
 import { computeTableStandings } from "@/lib/mahjong/tableStats";
 import {
@@ -47,26 +47,7 @@ export default async function RankingPage({
   const currentSeasonYear = getSeasonYear(now, group.seasonStartMonth);
   const currentQuarter = getQuarterForDate(now, group.seasonStartMonth).quarter;
 
-  // 対局記録の実データ範囲(+現在シーズン)から、切り替え可能なシーズン一覧を作る
-  const gameDateRange = await prisma.game.aggregate({
-    where: { groupId },
-    _min: { playedAt: true },
-    _max: { playedAt: true },
-  });
-  const earliestSeasonYear = Math.min(
-    gameDateRange._min.playedAt
-      ? getSeasonYear(gameDateRange._min.playedAt, group.seasonStartMonth)
-      : currentSeasonYear,
-    currentSeasonYear
-  );
-  const latestSeasonYear = Math.max(
-    gameDateRange._max.playedAt
-      ? getSeasonYear(gameDateRange._max.playedAt, group.seasonStartMonth)
-      : currentSeasonYear,
-    currentSeasonYear
-  );
-  const availableSeasonYears: number[] = [];
-  for (let y = earliestSeasonYear; y <= latestSeasonYear; y++) availableSeasonYears.push(y);
+  const availableSeasonYears = await getAvailableSeasonYears(groupId, group.seasonStartMonth);
 
   const requestedYear = Number(year);
   const seasonYear = availableSeasonYears.includes(requestedYear)

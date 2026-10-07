@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { computeTableFormation } from "@/lib/mahjong/tableFormation";
 import { computePlayerStats } from "@/lib/mahjong/playerStats";
+import { getSeasonYear } from "@/lib/mahjong/season";
 import type { EntryStatus } from "@/generated/prisma/client";
 
 /** 有効エントリー(参加希望として数える)状態。本人キャンセル/非選定は除外する */
@@ -112,4 +113,25 @@ export async function getParticipantStats(
   }, null);
 
   return { validEntryCount, playedCount, lastPlayedAt };
+}
+
+/** 対局記録の実データ範囲(+現在シーズン)から、切り替え可能なシーズン年の一覧を返す */
+export async function getAvailableSeasonYears(groupId: string, seasonStartMonth: number) {
+  const current = getSeasonYear(new Date(), seasonStartMonth);
+  const range = await prisma.game.aggregate({
+    where: { groupId },
+    _min: { playedAt: true },
+    _max: { playedAt: true },
+  });
+  const earliest = Math.min(
+    range._min.playedAt ? getSeasonYear(range._min.playedAt, seasonStartMonth) : current,
+    current
+  );
+  const latest = Math.max(
+    range._max.playedAt ? getSeasonYear(range._max.playedAt, seasonStartMonth) : current,
+    current
+  );
+  const years: number[] = [];
+  for (let y = earliest; y <= latest; y++) years.push(y);
+  return years;
 }
