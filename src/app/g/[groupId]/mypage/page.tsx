@@ -2,14 +2,12 @@ import Link from "next/link";
 import { requireMembership } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  getParticipantStats,
   getConfirmedGameResults,
   getPersonalGameStats,
 } from "@/lib/mahjong/queries";
 import { calculateRanking, toPlayCountBonusRule } from "@/lib/mahjong/ranking";
 import { getSeasonYear, getQuarterForDate, getSeasonRange, getQuarterRange } from "@/lib/mahjong/season";
 import { EXPERIENCE_LABELS } from "@/lib/mahjong/experience";
-import { formatDate } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { PlayerStatsCard } from "@/components/ui/PlayerStatsCard";
 
@@ -19,18 +17,12 @@ export default async function MyPage({
   params: Promise<{ groupId: string }>;
 }) {
   const { groupId } = await params;
-  const { user, membership } = await requireMembership(groupId);
+  const { user } = await requireMembership(groupId);
   const group = await prisma.group.findUniqueOrThrow({
     where: { id: groupId },
     include: { rule: true },
   });
   const playCountBonusRule = group.rule ? toPlayCountBonusRule(group.rule) : undefined;
-  const isOwner = membership.role === "owner";
-
-  const stats = await getParticipantStats(user.id, groupId);
-  const participationRate =
-    stats.validEntryCount > 0 ? stats.playedCount / stats.validEntryCount : null;
-
   const now = new Date();
   const seasonYear = getSeasonYear(now, group.seasonStartMonth);
   const currentQuarter = getQuarterForDate(now, group.seasonStartMonth).quarter;
@@ -52,71 +44,6 @@ export default async function MyPage({
       <div>
         <h1 className="font-serif text-xl font-bold text-ink-900">{user.name}</h1>
         <p className="mt-0.5 text-sm text-ink-600">{EXPERIENCE_LABELS[user.experienceLevel]}</p>
-      </div>
-
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">麻雀部の管理</h2>
-        <Card className="divide-y divide-ink-400/10">
-          <Link
-            href={`/g/${groupId}/members`}
-            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
-          >
-            <span className="text-ink-900">👥 メンバー・招待リンク</span>
-            <span className="text-ink-400">›</span>
-          </Link>
-          <Link
-            href={`/g/${groupId}/ranking?view=records`}
-            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
-          >
-            <span className="text-ink-900">📝 対局記録をつける</span>
-            <span className="text-ink-400">›</span>
-          </Link>
-          {isOwner && (
-            <Link
-              href={`/g/${groupId}/settings`}
-              className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
-            >
-              <span>
-                <span className="block text-ink-900">⚙️ 麻雀ルールを設定する</span>
-                <span className="mt-0.5 block text-xs text-ink-400">
-                  持ち点・ウマ・オカ・チップなどはここから設定できます
-                </span>
-              </span>
-              <span className="text-ink-400">›</span>
-            </Link>
-          )}
-          <Link
-            href="/groups"
-            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gold-500/5"
-          >
-            <span>
-              <span className="block text-ink-900">🔄 麻雀部を切り替える・追加する</span>
-              <span className="mt-0.5 block text-xs text-ink-400">
-                所属している麻雀部の一覧、新しい麻雀部の作成はこちらから
-              </span>
-            </span>
-            <span className="text-ink-400">›</span>
-          </Link>
-        </Card>
-      </div>
-
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">参加状況</h2>
-        <Card className="divide-y divide-ink-400/10">
-          <Row label="有効応募回数" value={`${stats.validEntryCount}回`} />
-          <Row label="実参加回数" value={`${stats.playedCount}回`} />
-          <Row
-            label="参加率"
-            value={participationRate === null ? "-" : `${Math.round(participationRate * 100)}%`}
-          />
-          <Row
-            label="最終対局日"
-            value={stats.lastPlayedAt ? formatDate(stats.lastPlayedAt) : "まだありません"}
-          />
-        </Card>
-        <p className="mt-1.5 text-xs text-ink-400">
-          参加率は参加機会の目安であり、麻雀の強さとは関係ありません。
-        </p>
       </div>
 
       <div>

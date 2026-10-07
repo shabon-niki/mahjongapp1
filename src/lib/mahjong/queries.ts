@@ -32,17 +32,7 @@ export function summarizeEntries<T extends { status: EntryStatus }>(entries: T[]
   };
 }
 
-function withMyEntryStatus<T extends { entries: { userId: string; status: EntryStatus }[] }>(
-  event: T,
-  userId?: string
-) {
-  if (!userId) return null;
-  const myEntry = event.entries.find((e) => e.userId === userId && isValidEntry(e.status));
-  return myEntry?.status ?? null;
-}
-
-/** Group単位で現在募集中(status: open)の卓を取得する。userIdを渡すと本人の応募状況も付与する。 */
-export async function listOpenEvents(groupId: string, userId?: string) {
+export async function listOpenEvents(groupId: string) {
   const events = await prisma.event.findMany({
     where: { groupId, status: "open" },
     include: { organizer: true, entries: true },
@@ -55,26 +45,6 @@ export async function listOpenEvents(groupId: string, userId?: string) {
       event,
       entryCount,
       formation: computeTableFormation(entryCount, event.maxTables),
-      myEntryStatus: withMyEntryStatus(event, userId),
-    };
-  });
-}
-
-/** Group単位で募集が終了した(status: open以外)過去の卓を取得する。誰が参加したかに関わらずGroup全体を返す。 */
-export async function listPastEvents(groupId: string, userId?: string) {
-  const events = await prisma.event.findMany({
-    where: { groupId, status: { not: "open" } },
-    include: { organizer: true, entries: true },
-    orderBy: { eventDatetime: "desc" },
-  });
-
-  return events.map((event) => {
-    const { entryCount } = summarizeEntries(event.entries);
-    return {
-      event,
-      entryCount,
-      formation: computeTableFormation(entryCount, event.maxTables),
-      myEntryStatus: withMyEntryStatus(event, userId),
     };
   });
 }
